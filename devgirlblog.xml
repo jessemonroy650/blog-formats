@@ -1,0 +1,1118 @@
+<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:atom="http://www.w3.org/2005/Atom"
+	xmlns:sy="http://purl.org/rss/1.0/modules/syndication/"
+	xmlns:slash="http://purl.org/rss/1.0/modules/slash/"
+	>
+
+<channel>
+	<title>Devgirl&#039;s Weblog</title>
+	<atom:link href="http://devgirl.org/feed/" rel="self" type="application/rss+xml" />
+	<link>http://devgirl.org</link>
+	<description>Web, Mobile Application Development</description>
+	<lastBuildDate>Fri, 08 Jan 2016 15:06:23 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>hourly</sy:updatePeriod>
+	<sy:updateFrequency>1</sy:updateFrequency>
+	
+	<item>
+		<title>Speaking with Cordova &#8211; Text To Speech and Voice Recognition using the Ionic Framework</title>
+		<link>http://devgirl.org/2016/01/08/speaking-with-cordova/</link>
+		<comments>http://devgirl.org/2016/01/08/speaking-with-cordova/#comments</comments>
+		<pubDate>Fri, 08 Jan 2016 13:49:46 +0000</pubDate>
+		<dc:creator><![CDATA[Simon Reimler]]></dc:creator>
+				<category><![CDATA[Cordova]]></category>
+		<category><![CDATA[ionic]]></category>
+		<category><![CDATA[PhoneGap]]></category>
+		<category><![CDATA[cordova]]></category>
+		<category><![CDATA[cordova voice recognition]]></category>
+		<category><![CDATA[phonegap]]></category>
+		<category><![CDATA[text to speech]]></category>
+
+		<guid isPermaLink="false">http://devgirl.org/?p=8268</guid>
+		<description><![CDATA[The following is a guest post by Simon Reimler Using Siri, Google Now or Cortana to talk with your smartphone is pretty normal these days. But have you ever considered creating your own Voice Dialog? And would you think this is possible within a hybrid app using Cordova and the Ionic Framework? Let me prove [&#8230;]]]></description>
+				<content:encoded><![CDATA[<p><em><strong>The following is a guest post by <a href="https://twitter.com/schlimmson">Simon Reimler</a></strong></em></p>
+<p>Using Siri, Google Now or Cortana to talk with your smartphone is pretty normal these days. But have you ever considered creating your own Voice Dialog? And would you think this is possible within a hybrid app using Cordova and the Ionic Framework? Let me prove it to you.</p>
+<p>In this article I will show you how to build text to speech voice output and speech recognition input using <a href="https://cordova.apache.org/" target="_blank">Cordova</a> plugins with the <a href="http://ionicframework.com/" target="_blank">Ionic Framework</a>.</p>
+<h2>Setting up the App</h2>
+<p>We start with a blank Ionic app and install our two Cordova plugins, so go ahead and run:</p>
+<pre class="brush: bash; title: ; notranslate">
+ionic start cordova-speech blank
+cd cordova-speech
+cordova plugin add cordova-plugin-tts
+cordova plugin add https://github.com/macdonst/SpeechRecognitionPlugin
+</pre>
+<p>This creates a new folder <strong>cordova-speech</strong> with a clean Ionic Framework app and adds two Cordova plugins we need for our example:</p>
+<p>The first plugin is a <a href="https://github.com/vilic/cordova-plugin-tts" target="_blank">cordova wrapper for the native text to speech output</a> functions. This plugin uses the <strong>AVSpeechSynthesizer</strong> on iOS and the <strong>android.speech.tts.TextToSpeech</strong> package on Android, so it&#8217;s really a simple mapper of the best native functions for giving out text. This plugin also seems to work for Windows phone, but I had no chance to test this part. If one of you has a Windows Phone why not give it a try and leave a comment with your findings below?</p>
+<p>The second plugin is a <a href="https://github.com/macdonst/SpeechRecognitionPlugin" target="_blank">cordova wrapper for speech recognition</a>. On Android this plugin uses the native <strong>android.speech.SpeechRecognizer</strong> package, on iOS it&#8217;s a bit harder to achieve this task so the author used the <a href="http://www.ispeech.org/#/home" target="_blank">iSpeech SDK</a> which you can test for free for now. If you plan to use this SDK in production additional costs may arise.</p>
+<p>Besides those two plugins we don&#8217;t need any more tools or fancy components inside our app!</p>
+<h2>Crafting our Speech View</h2>
+<p>The view of our app will be quite simple. First of all we need an input field for some text which our app can speak later on.</p>
+<p>Below this field we need two buttons, the first is to call our text to speech action so the text we have inserted get&#8217;s read to our user. The second button triggers our speech recognition dialog and listens for whatever we say.</p>
+<p>The recorded text (or what the app thinks we have said) will be printed below our other components, just to see how precise the recognition is. This can vary quite a bit, depending on surrounding sounds, how clear you speak, how difficult the words and sentences are and so on. You can play around with the results later and leave your opinions about this plugin below!</p>
+<p>For now go ahead and open your <strong>www/index.html</strong> and replace the current body with:</p>
+<pre class="brush: xml; title: ; notranslate">
+&lt;body ng-app=&quot;starter&quot;&gt;
+    &lt;ion-pane ng-controller=&quot;AppCtrl&quot;&gt;
+      &lt;ion-header-bar class=&quot;bar-stable&quot;&gt;
+        &lt;h1 class=&quot;title&quot;&gt;Cordova Text-to-Speech&lt;/h1&gt;
+      &lt;/ion-header-bar&gt;
+      &lt;ion-content class=&quot;padding&quot;&gt;
+        &lt;div class=&quot;list list-inset&quot;&gt;
+          &lt;label class=&quot;item item-input&quot;&gt;
+            &lt;i class=&quot;icon ion-speakerphone placeholder-icon&quot;&gt;&lt;/i&gt;
+            &lt;input type=&quot;text&quot; placeholder=&quot;Let me speak...&quot; ng-model=&quot;data.speechText&quot;&gt;
+          &lt;/label&gt;
+        &lt;/div&gt;
+        &lt;button class=&quot;button button-full button-positive&quot; ng-click=&quot;speakText()&quot;&gt;
+          Speak!
+        &lt;/button&gt;
+
+        &lt;button class=&quot;button button-full button-positive&quot;ng-click=&quot;record()&quot;&gt;
+          Record
+        &lt;/button&gt;
+        &lt;div class=&quot;card&quot;&gt;
+          &lt;div class=&quot;item item-text-wrap&quot;&gt;
+            {{recognizedText}}
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/ion-content&gt;
+    &lt;/ion-pane&gt;
+&lt;/body&gt;
+</pre>
+<p>There is really no magic in this view so let&#8217;s head to the real bread and butter of this article!</p>
+<h2>Using the Cordova Speech Plugins</h2>
+<p>We have already installed all the needed plugins and don&#8217;t have to import any headers or anything else besides. Therefore, open your <strong>www/js/app.js</strong> and replace everything inside with:</p>
+<pre class="brush: jscript; title: ; notranslate">
+angular.module('starter', ['ionic'])
+
+.controller('AppCtrl', function($scope) {
+  $scope.data = {
+    speechText: ''
+  };
+  $scope.recognizedText = '';
+
+  $scope.speakText = function() {
+    TTS.speak({
+           text: $scope.data.speechText,
+           locale: 'en-GB',
+           rate: 1.5
+       }, function () {
+           // Do Something after success
+       }, function (reason) {
+           // Handle the error case
+       });
+  };
+
+  $scope.record = function() {
+    var recognition = new SpeechRecognition();
+    recognition.onresult = function(event) {
+        if (event.results.length &gt; 0) {
+            $scope.recognizedText = event.results[0][0].transcript;
+            $scope.$apply()
+        }
+    };
+    recognition.start();
+  };
+});
+</pre>
+<p>As you can see there is not that much code needed for quite cool features! Let&#8217;s take a closer look at our controller implementation.</p>
+<p>We create a data object which will is connected to our input field. We need to make it an object so the value is updated correctly using <code>ng-model</code>.</p>
+<p>If we want our inserted text to be spoken, the <code>speakText()</code> function get&#8217;s called. We use the Cordova plugin by calling <code>TTS.speak()</code> and also pass an object with some properties. In this example we pass the text (which you should always do) and also a language and a rate which defines how fast the text is spoken. You can create quite funny outputs playing around with these values, trust me I had my fun creating this article!<br />
+Finally we can also specify a success and error callback, which I left empty for now because handling those errors is very custom for every app.</p>
+<p>Our voice recognition starts on calling <code>record()</code>. Here we create a new instance of a <code>SpeechRecognition</code> object. After creating it, we assign a function to the <code>onresult</code> property of the object. This function will be called once the recognizer thinks he is done listening to you talking.</p>
+<p>We check if we actually have any result, and if that&#8217;s the case we apply the text our recognizer understood to our scope variable which appears below our other view elements.</p>
+<p>After setting the result block we only have to start our recognition and the app starts listening, that&#8217;s all!</p>
+<h2>Conclusion</h2>
+<p>In this step-by-step tutorial I explained how to use two Cordova plugins for text to speech and voice recognition inside an Ionic app. You might think that these two features are hard to implement, but given the great wrappers they are super cheap and easy to include in your hybrid app.</p>
+<p>If you want to learn more about building great mobile Apps make sure to check out my <a href="https://devdactic.com/" target="_blank">Blog Devdactic</a> and <a href="https://twitter.com/schlimmson" target="_blank">follow me on Twitter @schlimmson</a>!</p>
+<p>Cheers,<br />
+Simon</p>
+<p><a class="a2a_button_twitter" href="http://www.addtoany.com/add_to/twitter?linkurl=http%3A%2F%2Fdevgirl.org%2F2016%2F01%2F08%2Fspeaking-with-cordova%2F&amp;linkname=Speaking%20with%20Cordova%20%E2%80%93%20Text%20To%20Speech%20and%20Voice%20Recognition%20using%20the%20Ionic%20Framework" title="Twitter" rel="nofollow" target="_blank"></a><a class="a2a_button_google_plus" href="http://www.addtoany.com/add_to/google_plus?linkurl=http%3A%2F%2Fdevgirl.org%2F2016%2F01%2F08%2Fspeaking-with-cordova%2F&amp;linkname=Speaking%20with%20Cordova%20%E2%80%93%20Text%20To%20Speech%20and%20Voice%20Recognition%20using%20the%20Ionic%20Framework" title="Google+" rel="nofollow" target="_blank"></a><a class="a2a_button_facebook" href="http://www.addtoany.com/add_to/facebook?linkurl=http%3A%2F%2Fdevgirl.org%2F2016%2F01%2F08%2Fspeaking-with-cordova%2F&amp;linkname=Speaking%20with%20Cordova%20%E2%80%93%20Text%20To%20Speech%20and%20Voice%20Recognition%20using%20the%20Ionic%20Framework" title="Facebook" rel="nofollow" target="_blank"></a><a class="a2a_dd a2a_target addtoany_share_save" href="https://www.addtoany.com/share#url=http%3A%2F%2Fdevgirl.org%2F2016%2F01%2F08%2Fspeaking-with-cordova%2F&amp;title=Speaking%20with%20Cordova%20%E2%80%93%20Text%20To%20Speech%20and%20Voice%20Recognition%20using%20the%20Ionic%20Framework" id="wpa2a_2"></a></p>]]></content:encoded>
+			<wfw:commentRss>http://devgirl.org/2016/01/08/speaking-with-cordova/feed/</wfw:commentRss>
+		<slash:comments>0</slash:comments>
+		</item>
+		<item>
+		<title>Sample PhoneGap App with ReactJS</title>
+		<link>http://devgirl.org/2015/09/22/sample-phonegap-app-with-reactjs/</link>
+		<comments>http://devgirl.org/2015/09/22/sample-phonegap-app-with-reactjs/#comments</comments>
+		<pubDate>Tue, 22 Sep 2015 13:44:14 +0000</pubDate>
+		<dc:creator><![CDATA[Holly Schinsky]]></dc:creator>
+				<category><![CDATA[Cordova]]></category>
+		<category><![CDATA[Mobile Development]]></category>
+		<category><![CDATA[PhoneGap]]></category>
+		<category><![CDATA[ReactJS]]></category>
+		<category><![CDATA[react cordova]]></category>
+		<category><![CDATA[react cordova sample]]></category>
+		<category><![CDATA[react hybrid]]></category>
+		<category><![CDATA[react mobile]]></category>
+		<category><![CDATA[react phonegap sample]]></category>
+		<category><![CDATA[reactjs]]></category>
+		<category><![CDATA[reactjs cordova]]></category>
+		<category><![CDATA[reactjs phonegap]]></category>
+
+		<guid isPermaLink="false">http://devgirl.org/?p=8116</guid>
+		<description><![CDATA[ReactJS has been getting a lot of attention and recently I decided to dig in myself to see what all the hype is about. ReactJS comes from the developers at Facebook, which may contribute to the popularity of it due to being backed by a big company (think AngularJS and Google). For the purposes of [&#8230;]]]></description>
+				<content:encoded><![CDATA[<p><a href="https://facebook.github.io/react/"><img src="http://devgirl.org/wp-content/uploads/2015/09/reactjs-logo2.png" alt="reactjs-logo2" width="140" height="124" class="alignleft size-full wp-image-8133" /></a><br />
+<a href="https://facebook.github.io/react/">ReactJS</a> has been getting a lot of attention and recently I decided to dig in myself to see what all the hype is about. <a href="https://facebook.github.io/react/">ReactJS</a> comes from the developers at Facebook, which may contribute to the popularity of it due to being backed by a big company (think <a href="https://angularjs.org/">AngularJS</a> and Google). </p>
+<p>For the purposes of this post, I focused on two main goals: 1) get my feet wet with ReactJS and 2) write a sample hybrid app using it. I haven&#8217;t seen many hybrid samples using ReactJS around and figured it may help to share my findings with others interested as well. </p>
+<h2>Mobile UI Framework Choices</h2>
+<p><a href="http://devgirl.org/wp-content/uploads/2015/09/ts-icon.png"><img src="http://devgirl.org/wp-content/uploads/2015/09/ts-icon.png" alt="ts-icon" width="100" height="100" class="alignright size-full wp-image-8119" /></a> </p>
+<p>When looking into using a mobile UI framework, you should consider the different categories available and choose based on your needs and preferences. Below are some general categories of UI frameworks available when building for mobile:</p>
+<ol>
+<li><strong>Lightweight</strong> &#8211; frameworks that provide the CSS layer for the UI but have no specific JavaScript dependencies. <a href="http://goratchet.com/">Ratchet</a> and <a href="http://topcoat.io/">Topcoat</a> are some examples.
+</li>
+<p></p>
+<li><strong>Responsive</strong> &#8211; frameworks built in a responsive manner but not necessarily designed for mobile specifically (<a href="http://getbootstrap.com">Bootstrap</a>, <a href="http://foundation.zurb.com/">Foundation by Zurb</a>).
+</li>
+<p></p>
+<li><strong>Mimic Native SDK&#8217;s</strong> &#8211; JavaScript frameworks built to mimic the native SDK&#8217;s for mobile. These frameworks typically handle things like application state, view stacks, navigation and rich interactions along with a full set of mobile-optimized UI widgets using JavaScript. <a href="http://ionicframework.com">Ionic</a>, <a href="http://onsen.io/">Onsen UI</a>, <a href="http://www.telerik.com/kendo-ui/open-source-core">Kendo UI</a>, <a href="https://jquerymobile.com/">jQuery Mobile</a> and <a href="https://www.sencha.com/products/touch/download/">Sencha Touch </a>for instance.
+</li>
+</ol>
+<p>I personally prefer the 3rd type of UI framework when building my own apps and have been a huge fan of the <a href="http://ionicframework.co">Ionic Framework</a> since discovering it. Since I&#8217;m building specifically for ReactJS in this case however, I started searching for what options were available based around React. I ran across <a href="http://touchstonejs.io/">TouchstoneJS</a> and decided to give it a whirl. </p>
+<h3>TouchstoneJS &#8211; Mobile UI Framework for React</h3>
+<p>TouchsoneJS is an early stage project built by <a href="http://www.thinkmill.com.au/">Thinkmill</a> and is described as a: </p>
+<blockquote><p>&#8220;<em>React.js powered UI framework for developing beautiful hybrid mobile apps.</em>&#8220;</p></blockquote>
+<div class="snvdshc"><div class="synved-box-message synved-box-info">Thinkmill also created <a href="http://elemental-ui.com/">Elemental UI</a> &#8211; a UI toolkit for building web apps/sites with React.js, <a href="http://keystonejs.com/">KeystoneJS</a> &#8211; a Node.js CMS and web app framework and the <a href="https://itunes.apple.com/us/app/reacteurope/id1008565762?mt=8">ReactEurope 2015 Conference Companion app</a>.</div></div>
+<h4>TouchstoneJS Features</h4>
+<p>Below is a list of high-level features:</p>
+<ul>
+<li><strong>Mobile UI Components</strong> (comprehensive set including headers, lists, tabs, popups, form controls, buttons etc)</li>
+<li><strong>Application State Management</strong></li>
+<li><strong>Navigation</strong></li>
+<li><strong>View Transitions</strong></li>
+<li><strong>View Stacks</strong></li>
+<li><strong>Optimized Animations</strong></li>
+<li><strong>Customizable Components</strong></li>
+</ul>
+<h3>Sample App &#8211; iTunes Media Finder</h3>
+<p>To get started my sample I first cloned the <a href="https://github.com/touchstonejs/touchstonejs-starter">TouchstoneJS starter project</a> and went to work trying to figure out how it was built using the Touchstone framework since there currently aren&#8217;t any docs available. </p>
+<p>For my sample app content, I decided to use the <a href="http://www.apple.com/itunes/affiliates/resources/documentation/itunes-store-web-service-search-api.html">iTunes Search API</a> again since I&#8217;ve created a few others using it with other UI frameworks and it&#8217;s a good use case for trying out various UI components (lists, form controls, navigation). The previous samples I built against the iTunes Search API are listed below for reference:</p>
+<ol>
+<li><a href="http://devgirl.org/2014/03/12/sample-phonegap-application-itunes-explorer-with-angularjsionic/">Ionic iTunes Explorer</a></li>
+<li><a href="http://devgirl.org/2014/05/13/sample-phonegap-application-with-angularjsonsenui/">Onsen UI iTunes Explorer</a></li>
+<li><a href="http://devgirl.org/2013/03/21/fun-with-angularjs/">Twitter Bootstrap Sample (web-based)</a></li>
+</ol>
+<div class="snvdshc"><div class="synved-box-message synved-box-warning">These samples are a bit out of date and will be updated but you should still be able to get a general idea of how they&#8217;re used for now.</div></div>
+<p>My new iTunes ReactJS/TouchstoneJS app is available in <a href="http://github.com/hollyschinsky/phonegap-app-touchstonejs">my github account</a> with instructions on how to use it. But I&#8217;ve also included this web app version below so you can try it out quickly:</p>
+<p><iframe src="http://devgirl.org/files/phonegap-react" width="375" height="667" frameborder="0"></iframe></p>
+<p>(A fullscreen version is also available <a href="http://devgirl.org/files/phonegap-react/">here</a>.) </p>
+<div class="snvdshc"><div class="synved-box-message synved-box-info">My sample uses JSONP to communicate with the iTunes Search API so it could be hosted as a web app too for easier sampling and avoid XHR issues.</div></div>
+<div class="snvdshc"><div class="synved-box-message synved-box-warning">One thing to make note of is that there are some things in the TouchstoneJS Starter project that are not in sync with the latest TouchstoneJS version at the moment but my sample IS in sync and I&#8217;ve made notes to things to be aware of in the code and README in the meantime. </div></div>
+<h3>iTunes Media Finder &#8211; Sample Highlights</h3>
+<p>Below are a list of features my sample app contains along with some code snippets to show a bit of detail on how it&#8217;s done:</p>
+<ul>
+<li><strong>Navigation</strong> &#8211; shows the use of titles, left/right buttons and action handling for switching between views</li>
+<pre class="brush: jscript; title: ; notranslate">
+getNavigation (props,app) {
+    return {
+        title: 'Search Criteria',
+        leftArrow: false,
+        rightAction: () =&gt; { app.transitionTo('tabs:about', { transition: 'fade-expand' }) },
+        rightIcon: 'ion-information-circled'
+    }
+}
+</pre>
+</li>
+<li><strong>View Transitions </strong>&#8211; uses different types of transitions and ways to trigger them
+<pre class="brush: jscript; title: ; notranslate">
+   this.context.app.transitionTo('tabs:media-list',
+	{transition: 'show-from-right',viewProps:{prevView: 'criteria', mediaType: this.state.mediaType, searchTerm: this.state.searchTerm,
+	numResults: this.state.numResults}})
+</pre>
+<li><strong>Tabs</strong> &#8211; implements a simple tabbed interface</li>
+<pre class="brush: jscript; title: ; notranslate">
+&lt;UI.Tabs.Navigator&gt;
+    &lt;UI.Tabs.Tab onTap={this.selectTab.bind(this, 'criteria')} selected={selectedTabSpan === 'criteria'}&gt;
+          &lt;span className=&quot;Tabs-Icon Tabs-Icon--form&quot; /&gt;
+      &lt;UI.Tabs.Label&gt;Search Media&lt;/UI.Tabs.Label&gt;
+    &lt;/UI.Tabs.Tab&gt;
+
+   &lt;UI.Tabs.Tab onTap={this.selectTab.bind(this, 'settings')} selected={selectedTabSpan === 'settings'}&gt;
+         &lt;span className=&quot;Tabs-Icon Tabs-Icon--settings&quot; /&gt;
+       &lt;UI.Tabs.Label&gt;Preferences&lt;/UI.Tabs.Label&gt;
+   &lt;/UI.Tabs.Tab&gt;
+&lt;/UI.Tabs.Navigator&gt;
+</pre>
+<li><strong>UI Controls</strong> &#8211; uses most of the UI controls available in the framework</li>
+<li><strong>Loading Popup</strong> &#8211; shows the use of a spinner when loading the list of results</li>
+<pre class="brush: xml; title: ; notranslate">
+&lt;UI.Popup visible={this.state.popup.visible}&gt;
+	&lt;UI.PopupIcon name={this.state.popup.iconName} type={this.state.popup.iconType} spinning={this.state.popup.loading} /&gt;
+	&lt;div&gt;&lt;strong&gt;{this.state.popup.header}&lt;/strong&gt;&lt;/div&gt;
+&lt;/UI.Popup&gt;
+</pre>
+<li><strong>Results Filtering</strong> &#8211; filters the results list with a matching string</li>
+<li><strong>Alert</strong> &#8211; built-in animation property you can set to slide down/up upon show and hide</li>
+<pre class="brush: xml; title: ; notranslate">
+   &lt;UI.Alertbar type={alertbar.type || 'default'} visible={alertbar.visible} animated&gt;{alertbar.text}&lt;/UI.Alertbar&gt;
+</pre>
+<pre class="brush: xml; title: ; notranslate">
+   &lt;UI.SearchField type=&quot;dark&quot; value={this.state.filterString} onSubmit={this.submitFilter} onChange={this.updateFilter}
+   onCancel={this.clearFilter} onClear={this.clearFilter} placeholder=&quot;Filter...&quot; /&gt;
+</pre>
+<li><strong>Preferences support</strong> &#8211; ability so save settings between tabs</li>
+<li><strong>Pre-configured</strong> &#8211; icons, splash screens, plugins and settings for Android and iOS already set in config.xml for your own reference.</li>
+</ul>
+<h2>Summary</h2>
+<p>The TouchstoneJS framework is still in early stages, lacks documentation and some features you may be looking for specifically (side menus, OS specific support, themes). However it does provide view navigation, a comprehensive set of UI widgets and application state out of the box and is definitely worth checking out if you want a jump start to building hybrid apps with ReactJS.</p>
+<p>Their <a href="https://github.com/touchstonejs/touchstonejs-starter">starter app</a> and <a href="https://github.com/touchstonejs/touchstonejs-tasks">touchstonejs-tasks</a> project are also really helpful for getting started quickly. If you use my sample iTunes app project or the TouchstoneJS starter project, it&#8217;s already configured to use the touchstonejs-tasks for taking care of the build process. The Thinkmill developers also wrote and included some other useful libraries for things like <a href="https://www.npmjs.com/package/react-tappable">tap event handling,</a> <a href="https://www.npmjs.com/package/react-container">flexible layout containers</a> and <a href="https://www.npmjs.com/package/tween.js">optimized tweens</a> so you don&#8217;t have to worry about it. </p>
+<p>If you run into any issues with my sample, please post to the <a href="https://github.com/hollyschinsky/phonegap-app-touchstonejs/issues">issue tracker</a> for the project and I&#8217;ll take a look. Also if you notice anything I could be doing better in it please submit a PR or mention in an issue. I&#8217;m still learning ReactJS myself and open to feedback :).</p>
+<h2>Resources</h2>
+<ul>
+<li><a href="http://www.thinkmill.com.au/react-europe">React Europe Showbag </a>&#8211; an open source set of projects developed by the authors of TouchstoneJS to build the ReactEurope 2015 conference app. </li>
+<li><a href="https://chrome.google.com/webstore/detail/react-developer-tools/fmkadmapgofadopljbjfkapdkoienihi?hl=en">React Developer Tools for Chrome</a> &#8211; I highly recommend adding this to your Chrome Developer tools for debugging React apps.</li>
+</ul>
+<p><a class="a2a_button_twitter" href="http://www.addtoany.com/add_to/twitter?linkurl=http%3A%2F%2Fdevgirl.org%2F2015%2F09%2F22%2Fsample-phonegap-app-with-reactjs%2F&amp;linkname=Sample%20PhoneGap%20App%20with%20ReactJS" title="Twitter" rel="nofollow" target="_blank"></a><a class="a2a_button_google_plus" href="http://www.addtoany.com/add_to/google_plus?linkurl=http%3A%2F%2Fdevgirl.org%2F2015%2F09%2F22%2Fsample-phonegap-app-with-reactjs%2F&amp;linkname=Sample%20PhoneGap%20App%20with%20ReactJS" title="Google+" rel="nofollow" target="_blank"></a><a class="a2a_button_facebook" href="http://www.addtoany.com/add_to/facebook?linkurl=http%3A%2F%2Fdevgirl.org%2F2015%2F09%2F22%2Fsample-phonegap-app-with-reactjs%2F&amp;linkname=Sample%20PhoneGap%20App%20with%20ReactJS" title="Facebook" rel="nofollow" target="_blank"></a><a class="a2a_dd a2a_target addtoany_share_save" href="https://www.addtoany.com/share#url=http%3A%2F%2Fdevgirl.org%2F2015%2F09%2F22%2Fsample-phonegap-app-with-reactjs%2F&amp;title=Sample%20PhoneGap%20App%20with%20ReactJS" id="wpa2a_4"></a></p>]]></content:encoded>
+			<wfw:commentRss>http://devgirl.org/2015/09/22/sample-phonegap-app-with-reactjs/feed/</wfw:commentRss>
+		<slash:comments>3</slash:comments>
+		</item>
+		<item>
+		<title>Apache Cordova Newsflash!</title>
+		<link>http://devgirl.org/2015/04/24/apache-cordova-newsflash/</link>
+		<comments>http://devgirl.org/2015/04/24/apache-cordova-newsflash/#comments</comments>
+		<pubDate>Fri, 24 Apr 2015 13:24:44 +0000</pubDate>
+		<dc:creator><![CDATA[Holly Schinsky]]></dc:creator>
+				<category><![CDATA[Cordova]]></category>
+		<category><![CDATA[Mobile Development]]></category>
+		<category><![CDATA[apache cordova]]></category>
+		<category><![CDATA[cordova]]></category>
+		<category><![CDATA[cordova android]]></category>
+		<category><![CDATA[cordova crosswalk]]></category>
+		<category><![CDATA[cordova news]]></category>
+		<category><![CDATA[cordova plugin]]></category>
+		<category><![CDATA[cordova updates]]></category>
+		<category><![CDATA[phonegap crosswalk]]></category>
+		<category><![CDATA[phonegap plugin]]></category>
+
+		<guid isPermaLink="false">http://devgirl.org/?p=7715</guid>
+		<description><![CDATA[Recently there have been some significant updates in Cordova to be aware of if you haven&#8217;t seen them already. These are included in the latest Cordova Android, Cordova Tools and Cordova Plugins releases this past week. Below is a summary of the highlights in case you missed them. Android 4.0.0 supports pluggable WebViews (hint: Crosswalk) [&#8230;]]]></description>
+				<content:encoded><![CDATA[<p><a href="http://devgirl.org/wp-content/uploads/2015/04/news_128x128_32.png"><img src="http://devgirl.org/wp-content/uploads/2015/04/news_128x128_32.png" alt="news_128x128_32" width="128" height="128" class="alignleft size-full wp-image-7761" /></a>Recently there have been some significant updates in Cordova to be aware of if you haven&#8217;t seen them already. These are included in the latest <a href="https://cordova.apache.org/announcements/2015/04/15/cordova-android-4.0.0.html">Cordova Android</a>, <a href="https://cordova.apache.org/news/2015/04/21/tools-release.html">Cordova Tools</a> and <a href="https://cordova.apache.org/announcements/2015/04/21/plugins-release-and-move-to-npm.html">Cordova Plugins </a>releases this past week.<br />
+<br />
+Below is a summary of the highlights in case you missed them.</p>
+<hr>
+<ul>
+<li></li>
+<li>
+<h4>Android 4.0.0 supports pluggable WebViews (hint: Crosswalk) </h4>
+<p>Apache Cordova now supports pluggable WebViews for Android. This news feature allows you to easily use <a href="https://crosswalk-project.org/">Crosswalk</a> to replace the default WebView. To take advantage of Crosswalk you&#8217;ll just need to install the <a href="https://github.com/MobileChromeApps/cordova-crosswalk-engine">new Crosswalk plugin </a></p>
+<div class="snvdshc"><div class="synved-box-message synved-box-info">Crosswalk is a modern WebView that can be used instead of the default Android WebView. It provides better support for the latest HTML5 features and allows you to provide a consistent experience across the various versions of Android and different manufacturers. </div></div>
+<p>Read more in the <a href="http://cordova.apache.org/announcements/2015/04/15/cordova-android-4.0.0.html">cordova-android 4.0.0 release news here.</a>
+</li>
+<li>
+<h4>Cordova Plugins in <a href="https://www.npmjs.com/">npm</a> and Renamed</h4>
+<p>Cordova plugins are now stored in npm (node package manager) and renamed with id&#8217;s of <strong>cordova-plugin-*,</strong> rather than the form of <strong>org.apache.cordova.*</strong>. The new id is a bit shorter and easier to remember, which should be helpful. The CLI (version 5.0.0+) will fetch the plugin from either npm or the original <a href="http://cordova.plugins.io">Cordova Plugin Registry</a> based on the id you specify when you add your plugin. If you use <strong>cordova-plugin-device</strong> for instance, the CLI will fetch it from npm, otherwise from the <a href="http://cordova.plugins.io">Cordova Plugin Registry</a> when the (<strong>org.apache.cordova.device</strong>) is used. </p>
+<p><div class="snvdshc"><div class="synved-box-message synved-box-warning">Developers are strongly encouraged to use the new id&#8217;s and add any existing or new plugins they&#8217;ve created there as well and add the <code>ecosystem:cordova</code> tag to their package.json file. Specific instructions on adding your plugin and details about this change can be found <a href="http://cordova.apache.org/announcements/2015/04/21/plugins-release-and-move-to-npm.html">here</a>. </div></div>
+</li>
+<li>
+<h4>Whitelist Handling Change</h4>
+<p>The whitelist code was moved out of core Cordova and into a <a href="https://www.npmjs.com/package/cordova-plugin-whitelist">new Cordova whitelist plugin</a>. This new whitelist is enhanced to be more secure and configurable, but the legacy whitelist behavior is still available <a href="https://www.npmjs.com/package/cordova-plugin-legacy-whitelist">via a separate legacy whitelist plugin</a> but NOT recommended. <a href="https://developer.mozilla.org/en-US/docs/Web/Security/CSP/Introducing_Content_Security_Policy">Content-Security-Policy (CSP)</a> is now supported and is the recommended approach. As a result of the new whitelist handling, you may require some additional configuration settings in the config.xml file as shown below:</p>
+<pre class="brush: xml; title: ; notranslate">
+    &lt;plugin name=&quot;cordova-plugin-whitelist&quot; spec=&quot;1&quot; /&gt;
+    &lt;access origin=&quot;*&quot; /&gt;
+    &lt;allow-intent href=&quot;http://*/*&quot; /&gt;
+    &lt;allow-intent href=&quot;https://*/*&quot; /&gt;
+    &lt;allow-intent href=&quot;tel:*&quot; /&gt;
+    &lt;allow-intent href=&quot;sms:*&quot; /&gt;
+    &lt;allow-intent href=&quot;mailto:*&quot; /&gt;
+    &lt;allow-intent href=&quot;geo:*&quot; /&gt;
+    &lt;platform name=&quot;android&quot;&gt;
+        &lt;allow-intent href=&quot;market:*&quot; /&gt;
+    &lt;/platform&gt;
+    &lt;platform name=&quot;ios&quot;&gt;
+        &lt;allow-intent href=&quot;itms:*&quot; /&gt;
+        &lt;allow-intent href=&quot;itms-apps:*&quot; /&gt;
+    &lt;/platform&gt;
+</pre>
+<div class="snvdshc"><div class="synved-box-message synved-box-info"><strong>NOTE:</strong> When you create a new project based on the default hello world project, your config.xml will already be preconfigured with these settings.</div></div>
+<div class="snvdshc"><div class="synved-box-message synved-box-warning"><strong>IMPORTANT:</strong> Network requests are blocked by default without <code>cordova-plugin-whitelist</code>, so install this plugin even to allow all requests, and even if you are using CSP.<br />
+</div></div>
+<p>More details can be found <a href="https://cordova.apache.org/announcements/2015/04/21/plugins-release-and-move-to-npm.html">here</a>.
+</li>
+<li>
+<h4>Saving Plugins and Platforms</h4>
+<p>You can save the plugins and platforms used in your project easily now a few different ways using either a <code>save</code> command or <code>--save</code> flag. Using these will cause new tags to be added to your config.xml to save the specific version so it can be auto-configured on another machine. This is super useful when working with a team or moving to another machine since you should never be checking those folders into your source control system. With this change, they are automatically added when the CLI finds them in the config.xml file during the <code>prepare</code> step (automatically done with a <code>build</code> or <code>run</code>) so it saves extra setup time. Note that when you remove a plugin or platform you should also specify the <code>--save</code> to cause it to be removed from the config.xml.<br />
+<br />
+Some examples of the different ways to use the new command or flag are shown below:</p>
+<h4>Saving Plugins</h4>
+<p><bold>Using <code>--save</code> flag</bold><br />
+<code><br />
+$ cordova plugin add cordova-plugin-device --save<br />
+$ cordova plugin remove cordova-plugin-device --save<br />
+</code></p>
+<p>This results in the following line being written ore removed from the config.xml:</p>
+<pre class="brush: xml; title: ; notranslate">
+    &lt;plugin name=&quot;cordova-plugin-device&quot; spec=&quot;1&quot; /&gt;
+</pre>
+<p><bold>Using <code>save</code> command</bold><br />
+<code><br />
+$ cordova plugin save<br />
+</code></p>
+<p>The above line will save all plugins that have been added to your project at once. </p>
+<div class="snvdshc"><div class="synved-box-message synved-box-success">Note: The plural version also works (ie: <code>$ cordova plugins save</code>)</div></div>
+<p>Below are some examples and the resulting console output:<br />
+<code><br />
+$ cordova plugin add cordova-plugin-device --save<br />
+Fetching plugin "cordova-plugin-device" via npm<br />
+npm http GET https://registry.npmjs.org/cordova-plugin-device<br />
+npm http 200 https://registry.npmjs.org/cordova-plugin-device<br />
+npm http GET https://registry.npmjs.org/cordova-plugin-device/-/cordova-plugin-device-1.0.0.tgz<br />
+npm http 200 https://registry.npmjs.org/cordova-plugin-device/-/cordova-plugin-device-1.0.0.tgz<br />
+Saved plugin info for "cordova-plugin-device" to config.xml<br />
+</code><br />
+<code><br />
+$ cordova plugin remove cordova-plugin-contacts --save<br />
+Uninstalling cordova-plugin-contacts from ios<br />
+Removing "cordova-plugin-contacts"<br />
+config.xml entry for cordova-plugin-contacts is removed<br />
+</code></p>
+<h4>Saving Platforms</h4>
+<p><bold>Using <code>--save</code> flag</bold><br />
+<code><br />
+$ cordova platform add ios --save<br />
+$ cordova platform remove ios --save<br />
+$ cordova platform update ios --save<br />
+</code></p>
+<p>This results in the following line being added to your config.xml:</p>
+<pre class="brush: xml; title: ; notranslate">
+    &lt;engine name=&quot;ios&quot; spec=&quot;3.8.0&quot; /&gt;
+</pre>
+<p><bold>Using <code>save</code> command</bold><br />
+<code><br />
+$ cordova platform save<br />
+</code></p>
+<p>The above line will save all platforms that have been added to your project at once. </p>
+<div class="snvdshc"><div class="synved-box-message synved-box-success">Note: The plural version also works (i.e.:<code>$ cordova platforms save</code>).</div></div>
+<p>Below are some examples and the resulting console output:</p>
+<p><code><br />
+$ cordova platform add firefoxos --save</p>
+<p>Adding firefoxos project...<br />
+Project Path platforms/firefoxos<br />
+Package Name io.cordova.hellocordova<br />
+Project Name HelloCordova<br />
+Installing "cordova-plugin-whitelist" for firefoxos<br />
+Installing "org.apache.cordova.console" for firefoxos<br />
+Installing "org.apache.cordova.contacts" for firefoxos<br />
+Installing "org.apache.cordova.device" for firefoxos<br />
+--save flag or autosave detected<br />
+Saving firefoxos@^3.6.3 into config.xml file ...`<br />
+</code></p>
+<div class="snvdshc"><div class="synved-box-message synved-box-info">Note how it also added any plugins added or found in the config.xml file to the added platform automatically as well.</div></div>
+<p><code><br />
+$ cordova platform remove firefoxos --save</p>
+<p>Removing firefoxos from config.xml file ...<br />
+</code></p>
+<p>Read the <a href="https://cordova.apache.org/news/2015/04/21/tools-release.html">official blog post</a> for details and to find out the rest of the changes in the latest release.
+</li>
+<li>
+<h4>Config.xml <code/>&lt;feature&gt;</code> tag now <code>&lt;plugin&gt;</code> </h4>
+<p>If you use the <code/>&lt;feature&gt;</code> tag to specify custom configuration for a platform or version, you should now use the <code/>&lt;plugin&gt;</code> tag. The <code/>&lt;feature&gt;</code> tag will still be backwards compatible, but you should be using the <code/>&lt;plugin&gt;</code> tag going forward. If you&#8217;re unsure of the details of the original <code/>&lt;feature&gt;</code>  tag, check out an example and more details <a href="http://devgirl.org/files/config-app/">here</a>.
+</li>
+<p><a class="a2a_button_twitter" href="http://www.addtoany.com/add_to/twitter?linkurl=http%3A%2F%2Fdevgirl.org%2F2015%2F04%2F24%2Fapache-cordova-newsflash%2F&amp;linkname=Apache%20Cordova%20Newsflash%21" title="Twitter" rel="nofollow" target="_blank"></a><a class="a2a_button_google_plus" href="http://www.addtoany.com/add_to/google_plus?linkurl=http%3A%2F%2Fdevgirl.org%2F2015%2F04%2F24%2Fapache-cordova-newsflash%2F&amp;linkname=Apache%20Cordova%20Newsflash%21" title="Google+" rel="nofollow" target="_blank"></a><a class="a2a_button_facebook" href="http://www.addtoany.com/add_to/facebook?linkurl=http%3A%2F%2Fdevgirl.org%2F2015%2F04%2F24%2Fapache-cordova-newsflash%2F&amp;linkname=Apache%20Cordova%20Newsflash%21" title="Facebook" rel="nofollow" target="_blank"></a><a class="a2a_dd a2a_target addtoany_share_save" href="https://www.addtoany.com/share#url=http%3A%2F%2Fdevgirl.org%2F2015%2F04%2F24%2Fapache-cordova-newsflash%2F&amp;title=Apache%20Cordova%20Newsflash%21" id="wpa2a_6"></a></p>]]></content:encoded>
+			<wfw:commentRss>http://devgirl.org/2015/04/24/apache-cordova-newsflash/feed/</wfw:commentRss>
+		<slash:comments>2</slash:comments>
+		</item>
+		<item>
+		<title>Interactive Config Guide for PhoneGap/Cordova</title>
+		<link>http://devgirl.org/2015/01/28/interactive-config-guide-for-phonegapcordova/</link>
+		<comments>http://devgirl.org/2015/01/28/interactive-config-guide-for-phonegapcordova/#comments</comments>
+		<pubDate>Wed, 28 Jan 2015 19:03:14 +0000</pubDate>
+		<dc:creator><![CDATA[Holly Schinsky]]></dc:creator>
+				<category><![CDATA[Cordova]]></category>
+		<category><![CDATA[iOS]]></category>
+		<category><![CDATA[Mobile Development]]></category>
+		<category><![CDATA[PhoneGap]]></category>
+		<category><![CDATA[PhoneGap 3.0]]></category>
+		<category><![CDATA[config.xml]]></category>
+		<category><![CDATA[cordova config]]></category>
+		<category><![CDATA[cordova icons]]></category>
+		<category><![CDATA[cordova preferences]]></category>
+		<category><![CDATA[cordova splash]]></category>
+		<category><![CDATA[phonegap config]]></category>
+
+		<guid isPermaLink="false">http://devgirl.org/?p=7638</guid>
+		<description><![CDATA[One of the challenges we face as hybrid app developers is determining which configuration settings to use for any given app due to variances in operating systems and browser rendering engines across platforms. The config.xml file located in the root of your PhoneGap/Cordova projects when you create an app can have a variety of content [&#8230;]]]></description>
+				<content:encoded><![CDATA[<div>
+<span style="background-color:#fbfac7; padding:0 2px;"> ** <a href="http://devgirl.org/files/config-app/" target="_blank""><strong>New updates to tool</strong></a> with more details, screenshots and videos. Continue to check back for more to come ** <br />
+<hr>
+</span>
+</div>
+<p><a href="http://devgirl.org/files/config-app/"><img src="http://devgirl.org/wp-content/uploads/2015/01/Screen-Shot-2015-01-28-at-1.48.12-PM-300x184.png" alt="Screen Shot 2015-01-28 at 1.48.12 PM" width="300" height="184" class="alignleft size-medium wp-image-7667" /></a>One of the challenges we face as hybrid app developers is determining which configuration settings to use for any given app due to variances in operating systems and browser rendering engines across platforms. The <code><strong>config.xml</strong></code> file located in the root of your PhoneGap/Cordova projects when you create an app can have a variety of content that can be confusing to developers. The documentation is often less than crystal clear as well.<br />
+<br />
+As a result, I&#8217;ve created a <a href="http://devgirl.org/files/config-app/" target="_blank">new interactive guide</a> to document it and help people understand what each element means as well as the defaults, valid values, required fields and supported platforms for each. You can hover over the elements on the left side in the config.xml file and the details for it will display on the right. You can click the buttons to display the different preferences by platform. I&#8217;ll be continuing to update it further as I find more details. </p>
+<div class="snvdshc"><div class="synved-box-message synved-box-info">This guide is specific to those properties available to you when building your app with the <a href="http://phonegap.com/install/" target="_blank">PhoneGap</a> or <a href="https://www.npmjs.com/package/cordova" target="_blank">Cordova CLI</a>. If you are using <a href="http://build.phonegap.com">PhoneGap Build</a>, you will still be using this <code><strong>config.xml</strong></code> file as a configuration vehicle, however the names and support for different elements and preferences are completely different than when using the CLI&#8217;s and not to be confused. I also highly recommend the <a href="http://aj-software.com/configap/" target="_blank">ConfiGAP tool</a> or refer to the <a href="http://docs.build.phonegap.com/">PhoneGap Build documentation</a> <em>Configuration</em> section specifically for those details. </div></div>
+<h2>Platform Details</h2>
+<p>While on the subject of configuration, I also think it&#8217;s useful to explain a couple of things going on behind the scenes in terms of configuration content and your apps for at least iOS and Android in case there are some that want to dig in deeper. I will add Windows and other platforms as I learn about them myself.</p>
+<h4>iOS</h4>
+<p>If you look at the <code>yourApp/platforms/ios/CordovaLib/ClassesCleaver</code> folder in your project you&#8217;ll find classes where your config.xml file is used. It is parsed specifically in the <code><a href="https://github.com/apache/cordova-ios/blob/master/CordovaLib/Classes/CDVConfigParser.m">CDVConfigParser.m</a></code> class and those properties are then set as needed in the <code><a href="https://github.com/apache/cordova-ios/blob/master/CordovaLib/Classes/CDVWebViewDelegate.m">CDVViewController.m</a></code> class. You should also be aware of the <code>&lt;projectName&gt;.plist</code> file that is used by your iOS apps. It&#8217;s located in the <code>../platforms/ios/MyProject/MyProject.plist</code> path (if you open the .xcode project in Xcode then you will find it under the <em>Resources</em> folder) and has settings that affect orientation, icons, splash screens and other properties you may want to modify at some point. Here&#8217;s a sample of what it looks like:</p>
+<p><a href="http://devgirl.org/wp-content/uploads/2015/01/ss.png"><img src="http://devgirl.org/wp-content/uploads/2015/01/ss.png" alt="ss" width="650" height="517" class="aligncenter size-full wp-image-7693" /></a></p>
+<h4>Android</h4>
+<p>You will also find a <code>CordovaLib</code> folder in the Android platform of your project and the class used for parsing the <code>config.xml</code> file for Android is <code><a href="https://github.com/apache/cordova-android/blob/2e3e4ec3b246aae8fc89525dc061d15c70bb44ea/framework/src/org/apache/cordova/ConfigXmlParser.java">ConfigXmlParser.java.</a></code> Once parsed, the class that processes the settings is <code><a href="https://github.com/apache/cordova-android/blob/2e3e4ec3b246aae8fc89525dc061d15c70bb44ea/framework/src/org/apache/cordova/CordovaActivity.java">CordovaActivity.java</a></code>. You should also be aware of the <code>&lt;AndroidManifest.xml</code> file used by your Android apps. It&#8217;s located in the <code>../platforms/android/AndroidManifest.xml</code> path and the <code>Activity</code> element has settings that will affect a number of things. Here&#8217;s an example of the defaults:</p>
+<pre class="brush: xml; title: ; notranslate">
+&lt;activity android:configChanges=&quot;orientation|keyboardHidden|keyboard|screenSize|locale&quot; android:label=&quot;@string/activity_name&quot; android:launchMode=&quot;singleTop&quot; android:name=&quot;HelloWorld&quot; android:theme=&quot;@android:style/Theme.Black.NoTitleBar&quot; android:windowSoftInputMode=&quot;adjustResize&quot;&gt;
+       &lt;intent-filter android:label=&quot;@string/launcher_name&quot;&gt;
+           &lt;action android:name=&quot;android.intent.action.MAIN&quot; /&gt;
+           &lt;category android:name=&quot;android.intent.category.LAUNCHER&quot; /&gt;
+       &lt;/intent-filter&gt;
+&lt;/activity&gt;
+</pre>
+<p>Please feel free to provide any feedback on your own use with these preferences and settings if you have more information to contribute from your own experience. I&#8217;ve included the guide below for a preview, but you should <strong><a href="http://devgirl.org/files/config-app/" target="_blank">open the app here</a></strong> in a new full window for a better experience.  </p>
+<p>
+<iframe src="http://devgirl.org/files/config-app/" width="1000" height="900" frameborder="0">&lt;br /&gt;<br />
+</iframe></p>
+<p><a class="a2a_button_twitter" href="http://www.addtoany.com/add_to/twitter?linkurl=http%3A%2F%2Fdevgirl.org%2F2015%2F01%2F28%2Finteractive-config-guide-for-phonegapcordova%2F&amp;linkname=Interactive%20Config%20Guide%20for%20PhoneGap%2FCordova" title="Twitter" rel="nofollow" target="_blank"></a><a class="a2a_button_google_plus" href="http://www.addtoany.com/add_to/google_plus?linkurl=http%3A%2F%2Fdevgirl.org%2F2015%2F01%2F28%2Finteractive-config-guide-for-phonegapcordova%2F&amp;linkname=Interactive%20Config%20Guide%20for%20PhoneGap%2FCordova" title="Google+" rel="nofollow" target="_blank"></a><a class="a2a_button_facebook" href="http://www.addtoany.com/add_to/facebook?linkurl=http%3A%2F%2Fdevgirl.org%2F2015%2F01%2F28%2Finteractive-config-guide-for-phonegapcordova%2F&amp;linkname=Interactive%20Config%20Guide%20for%20PhoneGap%2FCordova" title="Facebook" rel="nofollow" target="_blank"></a><a class="a2a_dd a2a_target addtoany_share_save" href="https://www.addtoany.com/share#url=http%3A%2F%2Fdevgirl.org%2F2015%2F01%2F28%2Finteractive-config-guide-for-phonegapcordova%2F&amp;title=Interactive%20Config%20Guide%20for%20PhoneGap%2FCordova" id="wpa2a_8"></a></p>]]></content:encoded>
+			<wfw:commentRss>http://devgirl.org/2015/01/28/interactive-config-guide-for-phonegapcordova/feed/</wfw:commentRss>
+		<slash:comments>1</slash:comments>
+		</item>
+		<item>
+		<title>Sync Data Using PouchDB In Your Ionic Framework App</title>
+		<link>http://devgirl.org/2014/12/30/sync-data-using-pouchdb-in-your-ionic-framework-app/</link>
+		<comments>http://devgirl.org/2014/12/30/sync-data-using-pouchdb-in-your-ionic-framework-app/#comments</comments>
+		<pubDate>Tue, 30 Dec 2014 16:19:47 +0000</pubDate>
+		<dc:creator><![CDATA[Nic Raboy]]></dc:creator>
+				<category><![CDATA[Android]]></category>
+		<category><![CDATA[AngularJS]]></category>
+		<category><![CDATA[Cordova]]></category>
+		<category><![CDATA[ionic]]></category>
+		<category><![CDATA[iOS]]></category>
+		<category><![CDATA[Mobile Development]]></category>
+		<category><![CDATA[couchdb]]></category>
+		<category><![CDATA[nosql]]></category>
+		<category><![CDATA[pouchdb]]></category>
+		<category><![CDATA[sync]]></category>
+
+		<guid isPermaLink="false">http://devgirl.org/?p=7641</guid>
+		<description><![CDATA[Syncing data with the cloud is all the hype lately.  Dropbox, Firebase, Parse, Couchbase, everyone is working towards having the easiest solution.  There are many others, but those are just a few off the top of my head. One of my subscribers recently asked if I knew how to get PouchDB working with an Apache [&#8230;]]]></description>
+				<content:encoded><![CDATA[<p>Syncing data with the cloud is all the hype lately.  <a title="Syncing Data With Dropbox Using Ionic Framework" href="https://blog.nraboy.com/2014/10/syncing-data-dropbox-using-ionicframework/" target="_blank">Dropbox</a>, <a title="Syncing Data With Firebase Using Ionic Framework" href="https://blog.nraboy.com/2014/12/syncing-data-firebase-using-ionic-framework/" target="_blank">Firebase</a>, Parse, Couchbase, everyone is working towards having the easiest solution.  There are many others, but those are just a few off the top of my head.</p>
+<p>One of my subscribers recently asked if I knew how to get <a title="PouchDB" href="http://pouchdb.com" target="_blank">PouchDB</a> working with an Apache Cordova mobile application using <a title="Ionic Framework" href="http://www.ionicframework.com" target="_blank">Ionic Framework</a> in particular.  I didn&#8217;t immediately know what PouchDB was, but after some reading I found it was inspired by <a title="Apache CouchDB" href="http://couchdb.apache.org/" target="_blank">Apache CouchDB</a>.</p>
+<p>In this guide, we&#8217;re going to see how to install CouchDB and use PouchDB in an Ionic Framework mobile application for cross platform synchronization.</p>
+<p><span id="more-7641"></span></p>
+<p>Since PouchDB is built upon Apache CouchDB, this guide will have two parts:</p>
+<ol>
+<li>Setting up a CouchDB server using Debian Linux</li>
+<li>Using PouchDB in a mobile application</li>
+</ol>
+<p>When everything has been completed, you&#8217;ll have a simple application that can sync between devices and platforms.</p>
+<p>&nbsp;</p>
+<h3>Setting up a CouchDB server using Debian Linux</h3>
+<p>Per the PouchDB and CouchDB documentation, most of what we need is already available on Debian and Ubuntu based Linux distributions.  For this example, I am using a fresh <a title="Digital Ocean" href="http://www.digitalocean.com" target="_blank">Digital Ocean</a> VPS with Debian 7 installed.  While using SSH with root access to your server, run the following to install CouchDB:</p>
+<pre class="brush: bash; title: ; notranslate">apt-get install couchdb</pre>
+<p>You&#8217;re going to have some Cross Origin Resource Sharing (CORS) errors out of the box so we need to install a special package.  However, this package requires NPM to have already been installed.  If it is not already installed you can run the following:</p>
+<pre class="brush: bash; title: ; notranslate">curl -sL https://deb.nodesource.com/setup | bash -
+apt-get install -y nodejs</pre>
+<p>With NodeJS installed, run the following to install and run our CORS package:</p>
+<pre class="brush: bash; title: ; notranslate">npm install -g add-cors-to-couchdb
+add-cors-to-couchdb</pre>
+<p>We&#8217;re not completely finished yet.  Currently only connections via localhost can be made to CouchDB.  For this example we&#8217;re going to open CouchDB to anyone.  You&#8217;re probably going to want to tweak this in the future.  As a root user, edit <strong>/etc/couchdb/local.ini</strong> and uncomment the <code>bind_address</code> line.  Also change <code>127.0.0.1</code> to <code>0.0.0.0</code>.  Now everyone can access the database.</p>
+<p>Again, it is important to use a setup that meets your needs in a production environment.</p>
+<p>You can confirm everything was set up correctly by entering <strong>http://serverip:5984/_utils</strong> into your web browser, exchanging <strong>serverip</strong> with the correct remote IP address.</p>
+<p>&nbsp;</p>
+<h3>Using PouchDB in a mobile application</h3>
+<p>The first thing we want to do is create a fresh Ionic Android and iOS project to work with:</p>
+<pre class="brush: bash; title: ; notranslate">ionic start PouchApp blank
+cd PouchApp
+ionic platform add android
+ionic platform add ios</pre>
+<p>Note, if you&#8217;re not using a Mac, you cannot add and build for the iOS platform.</p>
+<p>The next thing we want to do is download the PouchDB JavaScript library and place it in the <strong>www/js</strong> directory of our Ionic project.  Once the file is in place, we can continue to adding it into our <strong>www/index.html</strong> file:</p>
+<pre class="brush: xml; title: ; notranslate">&lt;script src=&quot;js/pouchdb-3.2.0.min.js&quot;&gt;&lt;/script&gt;</pre>
+<p>Now I did some Google searches and found that there is an <a title="AngularJS" href="https://angularjs.org/" target="_blank">AngularJS</a> library for PouchDB, but I found the documentation to be very poor.  Because of this I&#8217;ve decided to use the official JavaScript library and make my own wrappers.</p>
+<p>For simplicity, this application is going to be a to-do-list type application.  It will have one screen with a list, and users can choose to add to the list.  Open your <strong>www/index.html</strong> file and add the following between the <code>&lt;body&gt;</code> tags.</p>
+<pre class="brush: xml; title: ; notranslate">&lt;ion-pane ng-controller=&quot;ExampleController&quot;&gt;
+    &lt;ion-header-bar class=&quot;bar-stable&quot;&gt;
+        &lt;h1 class=&quot;title&quot;&gt;Ionic Blank Starter&lt;/h1&gt;
+        &lt;button class=&quot;right button button-icon icon ion-plus&quot; ng-click=&quot;create()&quot;&gt;&lt;/button&gt;
+    &lt;/ion-header-bar&gt;
+    &lt;ion-content&gt;
+        &lt;ion-list&gt;
+            &lt;ion-item ng-repeat=&quot;todo in todos&quot;&gt;
+                {{todo.title}}
+            &lt;/ion-item&gt;
+        &lt;/ion-list&gt;
+    &lt;/ion-content&gt;
+&lt;/ion-pane&gt;</pre>
+<p>Based on this UI, you can conclude that we will have one controller called <strong>ExampleController</strong>, an add button that calls <code>create()</code> when clicked, and a list of todo items.</p>
+<p>Open <strong>www/js/app.js</strong> and make sure your <code>angular.module</code> is set to a variable name like the following:</p>
+<pre class="brush: jscript; title: ; notranslate">var example = angular.module('starter', ['ionic']);</pre>
+<p>Right below this line, we need to declare our local and remote databases.  Later in our code we will be synchronizing them, but it doesn&#8217;t remove the need to declare them.  This can be done like so:</p>
+<pre class="brush: jscript; title: ; notranslate">var localDB = new PouchDB(&quot;todos&quot;);
+var remoteDB = new PouchDB(&quot;http://serverip:5984/todos&quot;);</pre>
+<p>Remember to swap out <strong>serverip</strong> with the IP of your server.</p>
+<p>Inside the <code>$ionicPlatform.ready</code> of your <code>run()</code> method we need to start synchronizing.  This can be done by adding the following:</p>
+<pre class="brush: jscript; title: ; notranslate">localDB.sync(remoteDB, {live: true});</pre>
+<p>The above line means that we&#8217;re constantly going to be listening for changes between databases and synchronizing them as they occur.</p>
+<p>So how are we going to watch for data changes in our databases and refresh our UI list?  If you&#8217;re familiar with AngularJS, you can&#8217;t just watch a global JavaScript variable.  Some extra magic has to happen.  We will be making use of <code>$rootScope.$broadcast</code> to signal every time we&#8217;ve received some kind of data change.  Create the following factory in your code:</p>
+<pre class="brush: jscript; title: ; notranslate">example.factory('PouchDBListener', ['$rootScope', function($rootScope) {
+
+    localDB.changes({
+        continuous: true,
+        onChange: function(change) {
+            if (!change.deleted) {
+                $rootScope.$apply(function() {
+                    localDB.get(change.id, function(err, doc) {
+                        $rootScope.$apply(function() {
+                            if (err) console.log(err);
+                            $rootScope.$broadcast('add', doc);
+                        })
+                    });
+                })
+            } else {
+                $rootScope.$apply(function() {
+                    $rootScope.$broadcast('delete', change.id);
+                });
+            }
+        }
+    });
+
+    return true;
+    
+}]);</pre>
+<p>The above code says the local database will look for changes.  If the change is not a delete, it is an add, so fire the <strong>add</strong> broadcast with the change data.  If the change is a delete, then fire the <strong>delete</strong> broadcast with the ID of the record.</p>
+<p>Time to create our <strong>ExampleController</strong> which will look for changes and add new changes via an <code>$ionicPopup</code> prompt.  Add the following code to your <strong>www/js/app.js</strong> file:</p>
+<pre class="brush: jscript; title: ; notranslate">example.controller(&quot;ExampleController&quot;, function($scope, $ionicPopup, PouchDBListener) {
+
+    $scope.todos = [];
+
+    $scope.create = function() {
+        $ionicPopup.prompt({
+            title: 'Enter a new TODO item',
+            inputType: 'text'
+        })
+        .then(function(result) {
+            if(result !== &quot;&quot;) {
+                if($scope.hasOwnProperty(&quot;todos&quot;) !== true) {
+                    $scope.todos = [];
+                }
+                localDB.post({title: result});
+            } else {
+                console.log(&quot;Action not completed&quot;);
+            }
+        });
+    }
+
+    $scope.$on('add', function(event, todo) {
+        $scope.todos.push(todo);
+    });
+
+    $scope.$on('delete', function(event, id) {
+        for(var i = 0; i &lt; $scope.todos.length; i++) {
+            if($scope.todos[i]._id === id) {
+                $scope.todos.splice(i, 1);
+            }
+        }
+    });
+
+});</pre>
+<p>If a delete is found, remove it from the list.  If an addition was found, add it to the list.  Creating a new item via the application will trigger the addition.</p>
+<p>The full <strong>www/js/app.js</strong> code can be seen below:</p>
+<pre class="brush: jscript; title: ; notranslate">var example = angular.module('starter', ['ionic']);
+var localDB = new PouchDB(&quot;todos&quot;);
+var remoteDB = new PouchDB(&quot;http://serverip:5984/todos&quot;);
+
+example.run(function($ionicPlatform) {
+    $ionicPlatform.ready(function() {
+        if(window.cordova &amp;amp;&amp;amp; window.cordova.plugins.Keyboard) {
+            cordova.plugins.Keyboard.hideKeyboardAccessoryBar(true);
+        }
+        if(window.StatusBar) {
+            StatusBar.styleDefault();
+        }
+        localDB.sync(remoteDB, {live: true});
+    });
+});
+
+example.controller(&quot;ExampleController&quot;, function($scope, $ionicPopup, PouchDBListener) {
+
+    $scope.todos = [];
+
+    $scope.create = function() {
+        $ionicPopup.prompt({
+            title: 'Enter a new TODO item',
+            inputType: 'text'
+        })
+        .then(function(result) {
+            if(result !== &quot;&quot;) {
+                if($scope.hasOwnProperty(&quot;todos&quot;) !== true) {
+                    $scope.todos = [];
+                }
+                localDB.post({title: result});
+            } else {
+                console.log(&quot;Action not completed&quot;);
+            }
+        });
+    }
+
+    $scope.$on('add', function(event, todo) {
+        $scope.todos.push(todo);
+    });
+
+    $scope.$on('delete', function(event, id) {
+        for(var i = 0; i &lt; $scope.todos.length; i++) {
+            if($scope.todos[i]._id === id) {
+                $scope.todos.splice(i, 1);
+            }
+        }
+    });
+
+});
+
+example.factory('PouchDBListener', ['$rootScope', function($rootScope) {
+
+    localDB.changes({
+        continuous: true,
+        onChange: function(change) {
+            if (!change.deleted) {
+                $rootScope.$apply(function() {
+                    localDB.get(change.id, function(err, doc) {
+                        $rootScope.$apply(function() {
+                            if (err) console.log(err);
+                            $rootScope.$broadcast('add', doc);
+                        })
+                    });
+                })
+            } else {
+                $rootScope.$apply(function() {
+                    $rootScope.$broadcast('delete', change.id);
+                });
+            }
+        }
+    });
+
+    return true;
+
+}]);</pre>
+<p>A video version of this article can be seen below.</p>
+<p><iframe width="500" height="281" src="https://www.youtube.com/embed/erQMOUcAdXk?feature=oembed" frameborder="0" allowfullscreen></iframe></p>
+<p><a class="a2a_button_twitter" href="http://www.addtoany.com/add_to/twitter?linkurl=http%3A%2F%2Fdevgirl.org%2F2014%2F12%2F30%2Fsync-data-using-pouchdb-in-your-ionic-framework-app%2F&amp;linkname=Sync%20Data%20Using%20PouchDB%20In%20Your%20Ionic%20Framework%20App" title="Twitter" rel="nofollow" target="_blank"></a><a class="a2a_button_google_plus" href="http://www.addtoany.com/add_to/google_plus?linkurl=http%3A%2F%2Fdevgirl.org%2F2014%2F12%2F30%2Fsync-data-using-pouchdb-in-your-ionic-framework-app%2F&amp;linkname=Sync%20Data%20Using%20PouchDB%20In%20Your%20Ionic%20Framework%20App" title="Google+" rel="nofollow" target="_blank"></a><a class="a2a_button_facebook" href="http://www.addtoany.com/add_to/facebook?linkurl=http%3A%2F%2Fdevgirl.org%2F2014%2F12%2F30%2Fsync-data-using-pouchdb-in-your-ionic-framework-app%2F&amp;linkname=Sync%20Data%20Using%20PouchDB%20In%20Your%20Ionic%20Framework%20App" title="Facebook" rel="nofollow" target="_blank"></a><a class="a2a_dd a2a_target addtoany_share_save" href="https://www.addtoany.com/share#url=http%3A%2F%2Fdevgirl.org%2F2014%2F12%2F30%2Fsync-data-using-pouchdb-in-your-ionic-framework-app%2F&amp;title=Sync%20Data%20Using%20PouchDB%20In%20Your%20Ionic%20Framework%20App" id="wpa2a_10"></a></p>]]></content:encoded>
+			<wfw:commentRss>http://devgirl.org/2014/12/30/sync-data-using-pouchdb-in-your-ionic-framework-app/feed/</wfw:commentRss>
+		<slash:comments>9</slash:comments>
+		</item>
+		<item>
+		<title>Push Notifications Sample App with Ionic and ngCordova</title>
+		<link>http://devgirl.org/2014/12/16/push-notifications-sample-app-with-ionic-and-ngcordova/</link>
+		<comments>http://devgirl.org/2014/12/16/push-notifications-sample-app-with-ionic-and-ngcordova/#comments</comments>
+		<pubDate>Tue, 16 Dec 2014 13:46:54 +0000</pubDate>
+		<dc:creator><![CDATA[Holly Schinsky]]></dc:creator>
+				<category><![CDATA[Android]]></category>
+		<category><![CDATA[ionic]]></category>
+		<category><![CDATA[iOS]]></category>
+		<category><![CDATA[Mobile Development]]></category>
+		<category><![CDATA[PhoneGap]]></category>
+		<category><![CDATA[PhoneGap 3.0]]></category>
+
+		<guid isPermaLink="false">http://devgirl.org/?p=7588</guid>
+		<description><![CDATA[I created a new sample push notification app recently to highlight some new changes in iOS 8 and show an example of implementing them with a currently popular stack of frameworks available to build hybrid mobile apps quickly. The sample app is built using Ionic with ngCordova to take advantage of the Cordova PushPlugin wrapper [&#8230;]]]></description>
+				<content:encoded><![CDATA[<p><a href="http://devgirl.org/wp-content/uploads/2014/12/app-icon.png"><img src="http://devgirl.org/wp-content/uploads/2014/12/app-icon.png" alt="app-icon" width="128" height="128" class="alignleft size-full wp-image-7620" /></a>I created a <a href="https://github.com/hollyschinsky/PushNotificationSample">new sample push notification app</a> recently to highlight some new changes in iOS 8 and show an example of implementing them with a currently popular stack of frameworks available to build hybrid mobile apps quickly. The sample app is built using <a href="http://ionicframework.com">Ionic</a> with <a href="http://ngcordova.com/">ngCordova</a> to take advantage of the <a href="http://ngcordova.com/docs/#Push">Cordova PushPlugin wrapper</a> (in addition to a few others noted on the <a href="https://github.com/hollyschinsky/PushNotificationSample">GitHub Readme</a>) and currently works on iOS (including iOS8) and Android. If you&#8217;re not familiar with <a href="http://ngcordova.com/">ngCordova</a> and building PhoneGap/Cordova apps with AngularJS, I can&#8217;t recommend it enough. It&#8217;s basically wrappers for common Cordova plugins that dramatically simplify your code and keep it more testable, maintainable and efficient. There&#8217;s already a <a href="http://ngcordova.com/docs/">huge list of common plugins</a> supported with <a href="https://github.com/driftyco/ng-cordova/releases">more being added </a>all the time. </p>
+<p>The app is nothing fancy, it simply registers your device when it runs and displays the device token returned from either APNs (<a href="https://developer.apple.com/library/ios/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/Chapters/ApplePushService.html#//apple_ref/doc/uid/TP40008194-CH100-SW9">Apple Push Notification Service for iOS</a>) or GCM (<a href="http://developer.android.com/google/gcm/gs.html">Google Cloud Messaging for Android</a>). Then when a notification is received, the app will display it in a list. The code handling is the more useful piece since it varies between platform and state (running in foreground, background, coldstart etc). </p>
+<p><a href="http://devgirl.org/wp-content/uploads/2014/12/push-server_Fotor_Collage.jpg"><img src="http://devgirl.org/wp-content/uploads/2014/12/push-server_Fotor_Collage.jpg" alt="push-server_Fotor_Collage" width="630" height="630" class="aligncenter size-full wp-image-7615" /></a></p>
+<h2>What you can learn</h2>
+<p>In general this sample can be useful to see how to:</p>
+<ul>
+<li>Add push notification support to your Ionic/Cordova app and take advantage of <a href="http://ngcordova.com/">ngCordova</a> to keep your angular code clean and maintainable.</li>
+<p></p>
+<li>Handle push notifications for different platforms and situations (iOS vs Android and if the app is running in the foreground, background or closed etc).</li>
+<p></p>
+<li>Create your own server-side solution for storing tokens and sending notifications using some nodeJS libraries available. </li>
+</ul>
+<h2>What to be aware of</h2>
+<p>The <a href="https://github.com/hollyschinsky/PushNotificationSample">details for the app</a> can be found in the readme on the <a href="https://github.com/hollyschinsky/PushNotificationSample">GitHub project page</a> and I provided comments in the code to help explain things in more detail, however there are a few other details I&#8217;d like to point out:</p>
+<ul>
+<li><strong>Register Handling</strong> &#8211; The registration id is returned in a different manner for iOS and Android when using the PushPlugin and it may be confusing at first. Just be aware that the iOS registration id (aka device token) is returned as a response to the PushPlugin <code>register()</code> call, whereas the Android registration id is received in the <code>pushNotificationReceived()</code> handler. See the <a href="https://github.com/hollyschinsky/PushNotificationSample/blob/master/www/js/controllers.js">controller.js</a> code for details. </li>
+<li><strong>Unregister Handling</strong> &#8211; Currently the PushPlugin <code>unregister()</code> is not called in the code (commented out), for various reasons. Instead it&#8217;s calling to remove the device token from the 3rd party database. This may not be ultimate in production, but you should stop to read these links I&#8217;ve included for details on what is recommended:
+<ul>
+<li><a href="https://developer.apple.com/library/ios/documentation/UIKit/Reference/UIApplication_Class/index.html#//apple_ref/occ/instm/UIApplication/unregisterForRemoteNotifications ">Apple Unregister Details </a></li>
+<li><a href="http://developer.android.com/google/gcm/adv.html#unreg-why">Android Unregister Details</a></li>
+</ul>
+</li>
+</ul>
+<h3>Message Payload Details</h3>
+<p>A payload is the message (notification) that is sent thru the respective Cloud Service (APN/GCM) to the device where the app is registered. It contains custom data and settings and varies between OS. My sample app handles many different scenarios depending on what data and flags are found within the message payload that you should take a look at. </p>
+<p>For instance, a typical sample message that might be received in your app is shown below in JSON format:</p>
+<h4>iOS Message Example</h4>
+<p><code>[{"badge":"0","sound":"soundName","alert":"Jennifer L liked your photo","foreground":"0"}]</code></p>
+<h4>Android Message Example</h4>
+<p><code>[{"message":"Tori432 commented on your photo: Awesome!","payload":{"message":"Tori432 commented on your photo: Awesome!"},"collapse_key":"optional","from":"824841663931","foreground":false,"event":"message","coldstart":false}]<br />
+</code><br />
+<div class="snvdshc"><div class="synved-box-message synved-box-info">The <a href="https://github.com/phonegap-build/PushPlugin/">Cordova PushPlugin</a> appends certain flags to the message data received, such as <code>foreground</code> and <code>coldstart</code> based on the current state and particular to platform. See the <a href="https://github.com/phonegap-build/PushPlugin/blob/f1fa935e476f9fecf6aff6459a4504e4b43cefcd/README.md">plugin readme</a> for specific details on these.</div></div></p>
+<h4>Max Message Sizes</h4>
+<p>The sizes of message payloads is different between platforms and recently changed in iOS 8:</p>
+<ul>
+<li>iOS Max Payload Size &#8211; <a href="https://developer.apple.com/library/ios/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/Chapters/ApplePushService.html">iOS8 payload size</a> is 2 kilobytes, < iOS8 is 256 bytes</li>
+<li>Android max payload is <a href="http://developer.android.com/google/gcm/adv.html">4 kilobytes </a>.</li>
+</ul>
+<h3>Newbies</h3>
+<p>If you&#8217;re new to push notifications you should go back and visit all of my <a href="http://devgirl.org/2013/07/17/tutorial-implement-push-notifications-in-your-phonegap-application/">previous posts</a> which go into great detail about different aspects of supporting the on different platforms. Some of the links to those posts and other useful ones are also included in the <a href="https://github.com/hollyschinsky/PushNotificationSample">GitHub Readme</a>. </p>
+<p>
+<div></div>
+<p><a class="a2a_button_twitter" href="http://www.addtoany.com/add_to/twitter?linkurl=http%3A%2F%2Fdevgirl.org%2F2014%2F12%2F16%2Fpush-notifications-sample-app-with-ionic-and-ngcordova%2F&amp;linkname=Push%20Notifications%20Sample%20App%20with%20Ionic%20and%20ngCordova" title="Twitter" rel="nofollow" target="_blank"></a><a class="a2a_button_google_plus" href="http://www.addtoany.com/add_to/google_plus?linkurl=http%3A%2F%2Fdevgirl.org%2F2014%2F12%2F16%2Fpush-notifications-sample-app-with-ionic-and-ngcordova%2F&amp;linkname=Push%20Notifications%20Sample%20App%20with%20Ionic%20and%20ngCordova" title="Google+" rel="nofollow" target="_blank"></a><a class="a2a_button_facebook" href="http://www.addtoany.com/add_to/facebook?linkurl=http%3A%2F%2Fdevgirl.org%2F2014%2F12%2F16%2Fpush-notifications-sample-app-with-ionic-and-ngcordova%2F&amp;linkname=Push%20Notifications%20Sample%20App%20with%20Ionic%20and%20ngCordova" title="Facebook" rel="nofollow" target="_blank"></a><a class="a2a_dd a2a_target addtoany_share_save" href="https://www.addtoany.com/share#url=http%3A%2F%2Fdevgirl.org%2F2014%2F12%2F16%2Fpush-notifications-sample-app-with-ionic-and-ngcordova%2F&amp;title=Push%20Notifications%20Sample%20App%20with%20Ionic%20and%20ngCordova" id="wpa2a_12"></a></p>]]></content:encoded>
+			<wfw:commentRss>http://devgirl.org/2014/12/16/push-notifications-sample-app-with-ionic-and-ngcordova/feed/</wfw:commentRss>
+		<slash:comments>9</slash:comments>
+		</item>
+		<item>
+		<title>PhoneGap CLI 3.6.3 Released with Significant Updates</title>
+		<link>http://devgirl.org/2014/11/14/phonegap-cli-3-6-3-released-with-significant-updates/</link>
+		<comments>http://devgirl.org/2014/11/14/phonegap-cli-3-6-3-released-with-significant-updates/#comments</comments>
+		<pubDate>Fri, 14 Nov 2014 13:54:32 +0000</pubDate>
+		<dc:creator><![CDATA[Holly Schinsky]]></dc:creator>
+				<category><![CDATA[Cordova]]></category>
+		<category><![CDATA[HTML/JS]]></category>
+		<category><![CDATA[Mobile Development]]></category>
+		<category><![CDATA[PhoneGap]]></category>
+		<category><![CDATA[cordova cli]]></category>
+		<category><![CDATA[cordova command line interface]]></category>
+		<category><![CDATA[phonegap cli]]></category>
+		<category><![CDATA[PhoneGap Command Line Interface]]></category>
+		<category><![CDATA[phonegap copy-from]]></category>
+		<category><![CDATA[phonegap create]]></category>
+		<category><![CDATA[phonegap help]]></category>
+		<category><![CDATA[phonegap link-to]]></category>
+
+		<guid isPermaLink="false">http://devgirl.org/?p=7544</guid>
+		<description><![CDATA[The PhoneGap CLI has undergone some significant changes recently to realign better with Cordova and a new version 3.6.3 has just been released. These changes will help to alleviate previous deviations between the two. Some of these updates are behind the scenes and will not necessarily be apparent to developers but will allow new features [&#8230;]]]></description>
+				<content:encoded><![CDATA[<p>The <a href="http://phonegap.com/blog/2014/11/13/phonegap-cli-3-6-3/">PhoneGap CLI</a> has undergone some <a href="http://phonegap.com/blog/2014/11/13/phonegap-cli-3-6-3/">significant changes</a> recently to realign better with <a href="cordova.io">Cordova</a> and a new <a href="https://www.npmjs.org/package/phonegap">version 3.6.3</a> has just been released. These changes will help to alleviate previous deviations between the two. Some of these updates are behind the scenes and will not necessarily be apparent to developers but will allow new features to be added quickly and the code to be more maintainable in the future. </p>
+<p>Below are some highlights developers may be particularly interested in knowing about in this latest version. Please read <a href="http://phonegap.com/blog/2014/11/13/phonegap-cli-3-6-3/">the official release details</a> on the PhoneGap blog for everything you need to know. </p>
+<h3>Highlights</h3>
+<ul>
+<li>All <code>cordova</code> commands and options are now supported directly via the <code>phonegap</code> command (including <a href="https://github.com/phonegap/phonegap-cli/blob/master/doc/cli/help.create.txt"><code>--copy-from, --link-to</code> options</a> etc).
+<p><div class="snvdshc"><div class="synved-box-message synved-box-info">I personally like to use <code>--copy-from</code> with the <code>create</code> command to quickly create a starter project from a base template I&#8217;ve created and <code>--link-to</code> when I want to easily create a symbolic link to another project without having to think about the syntax of how to do it each time.</div></div> </li>
+<li>The <code>phonegap create</code> command allows you to use shortcut flags <code>-n</code> and <code>-i</code> to quickly specify the app name and id/package and can be used in any order.</li>
+<p></p>
+<li>The config.xml file now resides in the root project folder rather than the <strong><em>www</em></strong> folder.</li>
+<p></p>
+<li>The <code>remote</code> command still allows you to build with <a href="http://build.phonegap.com">PhoneGap Build</a> but the <code>local</code> command is no longer necessary (deprecated) and assumed.</li>
+<p></p>
+<li>Better help text, easier ways to get to the help text and more explanatory output/error handling.</li>
+<p></p>
+<li>Platforms (ios, android etc) are automatically added if they don&#8217;t exist upon <code>build</code> and <code>run</code> so you don&#8217;t have to explicitly type <code>phonegap platform add [platform]</code>. </li>
+<p>     </p>
+<li>And <a href="http://phonegap.com/blog/2014/11/13/phonegap-cli-3-6-3/">more!</a>&#8230; </li>
+</ul>
+<p>These changes are available now, so take a moment to grab the latest via one of the commands below:</p>
+<p><code>$ sudo npm install -g phonegap</code><br />
+<code>$ sudo npm update -g phonegap</code></p>
+<p>Once again, be sure to read the <a href="http://phonegap.com/blog/2014/11/13/phonegap-cli-3-6-3/">detailed write-up just posted on the PhoneGap Blog</a> as I think even the most seasoned users will find something they were not previously aware of! </p>
+<p><a href="http://devgirl.org/wp-content/uploads/2014/11/Screen-Shot-2014-11-14-at-8.29.49-AM.png"><img src="http://devgirl.org/wp-content/uploads/2014/11/Screen-Shot-2014-11-14-at-8.29.49-AM-1024x594.png" alt="Screen Shot 2014-11-14 at 8.29.49 AM" width="1024" height="594" class="aligncenter size-large wp-image-7564" /></a></p>
+<p><a class="a2a_button_twitter" href="http://www.addtoany.com/add_to/twitter?linkurl=http%3A%2F%2Fdevgirl.org%2F2014%2F11%2F14%2Fphonegap-cli-3-6-3-released-with-significant-updates%2F&amp;linkname=PhoneGap%20CLI%203.6.3%20Released%20with%20Significant%20Updates" title="Twitter" rel="nofollow" target="_blank"></a><a class="a2a_button_google_plus" href="http://www.addtoany.com/add_to/google_plus?linkurl=http%3A%2F%2Fdevgirl.org%2F2014%2F11%2F14%2Fphonegap-cli-3-6-3-released-with-significant-updates%2F&amp;linkname=PhoneGap%20CLI%203.6.3%20Released%20with%20Significant%20Updates" title="Google+" rel="nofollow" target="_blank"></a><a class="a2a_button_facebook" href="http://www.addtoany.com/add_to/facebook?linkurl=http%3A%2F%2Fdevgirl.org%2F2014%2F11%2F14%2Fphonegap-cli-3-6-3-released-with-significant-updates%2F&amp;linkname=PhoneGap%20CLI%203.6.3%20Released%20with%20Significant%20Updates" title="Facebook" rel="nofollow" target="_blank"></a><a class="a2a_dd a2a_target addtoany_share_save" href="https://www.addtoany.com/share#url=http%3A%2F%2Fdevgirl.org%2F2014%2F11%2F14%2Fphonegap-cli-3-6-3-released-with-significant-updates%2F&amp;title=PhoneGap%20CLI%203.6.3%20Released%20with%20Significant%20Updates" id="wpa2a_14"></a></p>]]></content:encoded>
+			<wfw:commentRss>http://devgirl.org/2014/11/14/phonegap-cli-3-6-3-released-with-significant-updates/feed/</wfw:commentRss>
+		<slash:comments>0</slash:comments>
+		</item>
+		<item>
+		<title>Boost your iOS 8 Mobile App Performance with WKWebView</title>
+		<link>http://devgirl.org/2014/11/10/boost-your-ios-8-mobile-app-performance-with-wkwebview/</link>
+		<comments>http://devgirl.org/2014/11/10/boost-your-ios-8-mobile-app-performance-with-wkwebview/#comments</comments>
+		<pubDate>Mon, 10 Nov 2014 13:44:40 +0000</pubDate>
+		<dc:creator><![CDATA[Holly Schinsky]]></dc:creator>
+				<category><![CDATA[Cordova]]></category>
+		<category><![CDATA[iOS]]></category>
+		<category><![CDATA[Mobile Development]]></category>
+		<category><![CDATA[PhoneGap]]></category>
+		<category><![CDATA[apple wkwebview cordova]]></category>
+		<category><![CDATA[cordova webview]]></category>
+		<category><![CDATA[ios 8 performance]]></category>
+		<category><![CDATA[ios8 webview]]></category>
+		<category><![CDATA[phonegap webview]]></category>
+		<category><![CDATA[uiwebview]]></category>
+		<category><![CDATA[wkwebview]]></category>
+		<category><![CDATA[wkwebview bug]]></category>
+
+		<guid isPermaLink="false">http://devgirl.org/?p=7409</guid>
+		<description><![CDATA[If you build hybrid apps using PhoneGap/Cordova for iOS, you are likely aware that Apple recently announced a new WKWebView for iOS 8 which has major performance optimizations over the UIWebView including access to the Nitro JIT JavaScript engine. Benchmark tests with Nitrous enabled report a 40%-80% performance spike. (See this link for more details). [&#8230;]]]></description>
+				<content:encoded><![CDATA[<p><a href="http://devgirl.org/wp-content/uploads/2014/11/ios8.jpeg"><img src="http://devgirl.org/wp-content/uploads/2014/11/ios8.jpeg" alt="ios8" width="200" height="200" class="alignleft size-full wp-image-7411" /></a><br />
+If you build hybrid apps using PhoneGap/Cordova for iOS, you are likely aware that <a href="http://9to5mac.com/2014/06/03/ios-8-webkit-changes-finally-allow-all-apps-to-have-the-same-performance-as-safari/">Apple recently announced </a>a new <a href="https://developer.apple.com/library/IOs/documentation/WebKit/Reference/WKWebView_Ref/index.html"><strong><code>WKWebView</code></strong></a> for iOS 8 which has major performance optimizations over the <a href="https://developer.apple.com/library/ios/documentation/UIKit/Reference/UIWebView_Class/index.html"><strong><code>UIWebView</code></strong></a> including access to the Nitro JIT JavaScript engine. Benchmark tests with Nitrous enabled report a 40%-80% performance spike. (See <a href="http://www.techimperial.com/ios/cydia/nitrous-speed-boost-ios-just-in-time-compiler/">this link</a> for more details). Unfortunately this new <code>WKWebView</code> had some initial issues that needed to be resolved for PhoneGap/Cordova to be supported with it due to the <a href="http://shazronatadobe.wordpress.com/2014/09/18/cordova-ios-and-ios-8/">reasons explained here</a> by resident iOS expert <a href="https://twitter.com/shazron">Shazron</a> (essentially an issue with loading local file URLs). Apple has actually <a href="https://bugs.webkit.org/show_bug.cgi?id=137153">fixed this bug</a>, but it&#8217;s not yet been released and a target release date is unknown.</p>
+<h2>WKWebView Plugin</h2>
+<p>In the meantime there&#8217;s a new option (self-proclaimed <em>hack</em>) available to try. <a href="https://twitter.com/eddyverbruggen">Eddy Verbruggen</a> (author of the <a href="https://github.com/EddyVerbruggen/SocialSharing-PhoneGap-Plugin">Social Sharing Plugin</a> and many other useful Cordova plugins) created <a href="https://github.com/EddyVerbruggen/cordova-plugin-wkwebview">a WKWebView plugin</a> that uses the <code><strong>WKWebView</strong></code> rather than the <code><strong>UIWebView</strong></code> and includes <a href="https://github.com/EddyVerbruggen/cordova-plugin-wkwebview/blob/master/src/ios/MyMainViewController.m">code to fix the local file loading</a> issue. A screenshot from his demo app running a performance test in the standard Hello World app using the new plugin versus without it is shown below. Notice the difference in FPS (frames per second) and CPU by using this plugin:</p>
+<p><a href="http://devgirl.org/wp-content/uploads/2014/11/UIWebView-vs-WKWebView1.png"><img src="http://devgirl.org/wp-content/uploads/2014/11/UIWebView-vs-WKWebView1.png" alt="UIWebView-vs-WKWebView" width="600" height="544" class="aligncenter size-full wp-image-7512" /></a></p>
+<div class="snvdshc"><div class="synved-box-message synved-box-success">I tried out Eddy&#8217;s plugin on my iPhone 6 running iOS 8.1 and saw similar FPS and CPU results to the screenshots above when including the plugin vs without it (defaulting to the standard UIWebView), pretty awesome!! Some of the community folks have been testing it with different types of apps (including some built with <a href="http://ionicframework.com">Ionic</a>) as well and after <a href="https://github.com/EddyVerbruggen/cordova-plugin-wkwebview/issues?q=is%3Aissue+is%3Aclosed">a couple issues</a> have been worked out, it seems to be providing <a href="http://forum.ionicframework.com/t/cordova-support-for-wkwebview-in-ios8/10480/8">great results</a> to many and is an option for folks to consider until the Apple fix is released. The plugin is also supported on the iOS 8 simulator and simply defaults back to the <code><strong>UIWebView</strong></code> on iOS 7 and lower. Please keep in mind this plugin is new and beta currently and you can report any issues found to the <a href="https://github.com/EddyVerbruggen/cordova-plugin-wkwebview/issues">issue tracker</a>.</div></div>
+<h2>How does it work?</h2>
+<p>To summarize how this works, the plugin includes an <a href="https://github.com/EddyVerbruggen/cordova-plugin-wkwebview/blob/master/src/ios/AppDelegate%2BWKWebViewPolyfill.m">AppDelegate+WKWebViewPolyfill class</a> that checks to see if the app is running on iOS8 and if so will use a <a href="https://github.com/EddyVerbruggen/cordova-plugin-wkwebview/blob/master/src/ios/MyMainViewController.m">different ViewController</a> with the <code>WKWebView</code> instead of the <code>UIWebView</code> as it&#8217;s <a href="https://github.com/EddyVerbruggen/cordova-plugin-wkwebview/blob/master/src/ios/CDVWebViewUIDelegate.m">WebView UI delegate</a>. This is done via <em><a href="http://nshipster.com/method-swizzling/">method swizzling (changing implementation at runtime)</a> as shown in the code snippet below:</em> </p>
+<pre class="brush: objc; title: ; notranslate">
+@implementation AppDelegate (WKWebViewPolyfill)
+
++ (void)load {
+  // swap in our own viewcontroller which loads the wkwebview, but only in case we're running iOS 8+
+  if (IsAtLeastiOSVersion(@&quot;8.0&quot;)) {
+    swizzleMethod([AppDelegate class],
+                  @selector(application:didFinishLaunchingWithOptions:),
+                  @selector(my_application:didFinishLaunchingWithOptions:));
+  }
+}
+</pre>
+<p>To learn all about the <code><strong>WKWebView</strong></code>, check out this in-depth <a href="http://nshipster.com/wkwebkit/">informative post</a> by <a href="https://twitter.com/mattt">Mattt Thomspon</a>. Some interesting and inspirational quotes from the article are included below. <img src="http://devgirl.org/wp-includes/images/smilies/simple-smile.png" alt=":)" class="wp-smiley" style="height: 1em; max-height: 1em;" /></p>
+<blockquote class="blockquote_end style02" align="">
+<span>
+<p class="end-quote"> It&#8217;s a dirty secret that some stock apps like Messages use WebKit to render tricky content. The fact that you probably haven&#8217;t noticed should be an indicator that web views actually have a place in app development best practices. </p>
+<p><cite></cite></p>
+</span>
+</blockquote>
+<blockquote class="blockquote_end style02" align="">
+<span>
+<p class="end-quote"> If your app is little more than a thin container around web content, WKWebView is a game-changer. All of that performance and compatibility that you&#8217;ve longed for is finally available. It&#8217;s everything you might have hoped for.</p>
+<p><cite></cite></p>
+</span>
+</blockquote>
+<h3>Useful Links</h3>
+<ul>
+<li><a href="https://issues.apache.org/jira/browse/CB-7043">General JIRA tracking issue</a> for Cordova iOS 8 support</li>
+<li><a href="http://9to5mac.com/2014/06/03/ios-8-webkit-changes-finally-allow-all-apps-to-have-the-same-performance-as-safari/">9 to 5 Mac &#8211; iOS 8 WebKit changes finally allow all apps to have the same performance as Safari</a></li>
+<li><a href="http://nshipster.com/wkwebkit/">Informative post with all the details on the new WKWebView and more</a> by <a href="https://twitter.com/mattt">Mattt Thomspon</a>.
+<li><a href="https://twitter.com/tjvantoll">TJ Van Toll</a> from Telerik on <a href="http://developer.telerik.com/featured/why-ios-8s-wkwebview-is-a-big-deal-for-hybrid-development/">why WKWebView is a big deal</a></li>
+<p>
+</ul>
+<p><a class="a2a_button_twitter" href="http://www.addtoany.com/add_to/twitter?linkurl=http%3A%2F%2Fdevgirl.org%2F2014%2F11%2F10%2Fboost-your-ios-8-mobile-app-performance-with-wkwebview%2F&amp;linkname=Boost%20your%20iOS%208%20Mobile%20App%20Performance%20with%20WKWebView" title="Twitter" rel="nofollow" target="_blank"></a><a class="a2a_button_google_plus" href="http://www.addtoany.com/add_to/google_plus?linkurl=http%3A%2F%2Fdevgirl.org%2F2014%2F11%2F10%2Fboost-your-ios-8-mobile-app-performance-with-wkwebview%2F&amp;linkname=Boost%20your%20iOS%208%20Mobile%20App%20Performance%20with%20WKWebView" title="Google+" rel="nofollow" target="_blank"></a><a class="a2a_button_facebook" href="http://www.addtoany.com/add_to/facebook?linkurl=http%3A%2F%2Fdevgirl.org%2F2014%2F11%2F10%2Fboost-your-ios-8-mobile-app-performance-with-wkwebview%2F&amp;linkname=Boost%20your%20iOS%208%20Mobile%20App%20Performance%20with%20WKWebView" title="Facebook" rel="nofollow" target="_blank"></a><a class="a2a_dd a2a_target addtoany_share_save" href="https://www.addtoany.com/share#url=http%3A%2F%2Fdevgirl.org%2F2014%2F11%2F10%2Fboost-your-ios-8-mobile-app-performance-with-wkwebview%2F&amp;title=Boost%20your%20iOS%208%20Mobile%20App%20Performance%20with%20WKWebView" id="wpa2a_16"></a></p>]]></content:encoded>
+			<wfw:commentRss>http://devgirl.org/2014/11/10/boost-your-ios-8-mobile-app-performance-with-wkwebview/feed/</wfw:commentRss>
+		<slash:comments>4</slash:comments>
+		</item>
+		<item>
+		<title>Cordova/PhoneGap Version Confusion</title>
+		<link>http://devgirl.org/2014/11/07/cordovaphonegap-version-confusion/</link>
+		<comments>http://devgirl.org/2014/11/07/cordovaphonegap-version-confusion/#comments</comments>
+		<pubDate>Fri, 07 Nov 2014 18:38:48 +0000</pubDate>
+		<dc:creator><![CDATA[Holly Schinsky]]></dc:creator>
+				<category><![CDATA[Android]]></category>
+		<category><![CDATA[Cordova]]></category>
+		<category><![CDATA[ionic]]></category>
+		<category><![CDATA[iOS]]></category>
+		<category><![CDATA[Mobile Development]]></category>
+		<category><![CDATA[PhoneGap]]></category>
+		<category><![CDATA[cordova cli version]]></category>
+		<category><![CDATA[cordova plugin version]]></category>
+		<category><![CDATA[cordova version]]></category>
+		<category><![CDATA[find cordova version]]></category>
+		<category><![CDATA[phonegap cli version]]></category>
+		<category><![CDATA[phonegap plugin version]]></category>
+		<category><![CDATA[phonegap version]]></category>
+
+		<guid isPermaLink="false">http://devgirl.org/?p=7394</guid>
+		<description><![CDATA[The different versions of all things Cordova and PhoneGap can be pretty confusing to keep track of at times. Everyone may not be aware that there have been some recent decisions and changes made to how things will be handled with the Cordova project going forward. In summary, the platform versions (ios, android etc) are [&#8230;]]]></description>
+				<content:encoded><![CDATA[<p><a href="http://devgirl.org/wp-content/uploads/2014/11/confused-dog.jpg"><img src="http://devgirl.org/wp-content/uploads/2014/11/confused-dog-224x300.jpg" alt="confused-dog" width="224" height="300" class="alignleft size-medium wp-image-7395"/></a></p>
+<p>The different versions of all things <a href="http://cordova.apache.org/">Cordova</a> and <a href="http://phonegap.com">PhoneGap</a> can be pretty confusing to keep track of at times. Everyone may not be aware that there have been <a href="https://www.mail-archive.com/dev@cordova.apache.org/msg22789.html">some recent decisions and changes made</a> to how things will be handled with the <a href="http://cordova.apache.org/">Cordova</a> project going forward. </p>
+<p>In summary, the platform versions (ios, android etc) are now independent of CLI version (will no longer match) and the CLI version will likely be rising more rapidly. Read the <a href="https://www.mail-archive.com/dev@cordova.apache.org/msg22789.html">whole thread</a> if you&#8217;re curious about why this changed. This post is an attempt to explain the different versions and how you can find them for your projects.</p>
+<h2>Cordova Versions</h2>
+<p>We&#8217;ll start with Cordova since it&#8217;s the underlying version to so many different things including other vendors&#8217; offerings so you should always be aware of how to find these versions first and foremost.</p>
+<p></p>
+<ul>
+<li><strong>Overall Version</strong> &#8211; find yours by typing:<br />
+<br />
+<code>$ cordova -v</code></p>
+<p>When you install <a href="https://www.npmjs.org/package/cordova">cordova from npm</a> or click the <a href="http://cordova.io">download button from Cordova.io</a>, these versions are the same (currently 4.0.0) and represent a blanket identifier that includes:</p>
+<ol>
+<li><strong>The <a href="https://www.npmjs.org/package/cordova">CLI (command line interface) Tooling Version</a></strong> &#8211; The version of the tooling and commands you&#8217;re using to create, build and deploy your apps. For instance, if a new option is added to the <code>$ cordova create</code> command to allow you to specify a template URL.
+<p>Use the same command as before to find the CLI version:<br />
+<br />
+<code>$ cordova -v</code></p>
+<p>**<strong>Note:</strong> this number will always match the overall version.**
+</li>
+<p></p>
+<li><strong>Set of Platform Versions</strong> &#8211; This is basically the version of <strong>cordova.js</strong> file copied in at build time for each supported platform (amazon-fireos, android, blackberry10, browser, firefoxos, ios, windows etc), since each has its own specific code.<br />
+<br />
+For instance, the current 4.0.0 version will install iOS 3.6.3, android 3.6.4, browser 3.6.0, firefox os 3.6.3 etc. </p>
+<p>You can find the platform versions with the <span style="background-color:#DDF8FF; padding:0 2px;"><code>$ cordova platform list</code></span>  command such as:<br />
+<br />
+<code>$ cordova platform list<br />
+Installed platforms: android 3.6.4, browser 3.5.2, firefoxos 3.6.3, ios 3.6.3<br />
+Available platforms: amazon-fireos, blackberry10<br />
+</code></p>
+<p>To install a specific version, first remove the current one if a version was previously added via:<br />
+<br />
+<code>$ cordova platform remove ios</code></p>
+<p>Then add the one you want by using the @ syntax:<br />
+<br />
+<code>$ cordova platform add ios@3.7.0</code></p>
+<p><span style="background-color:#fbfac7; padding:0 2px;"> <strong>Tip:</strong> Always use the <code>$ cordova platform remove</code> command versus manually deleting a platform folder from the file system or you will likely cause yourself in some sort of pain down the road. :)</span><br />
+<br />
+<strong>NOTE: </strong>If there ever seems to be a mismatch with what&#8217;s returned from the <code>platform list</code> command, you can always just open the cordova.js file copied into the platforms www folder (for example ../platforms/ios/www/cordova.js) to see what&#8217;s specified in the following variable:</p>
+<p><code>var PLATFORM_VERSION_BUILD_LABEL = '3.7.0';</code></p>
+</li>
+</ol>
+<p></p>
+<div>
+ </li>
+<li><strong>Plugin Version:</strong> Each plugin (file, device, media, contacts etc) also has a version. To see the versions of plugins for a given project, use the <span style="background-color:#DDF8FF; padding:0 2px;"><code>$ cordova plugin list</code></span>  command such as:<br />
+<br />
+<code>$ cordova plugin list<br />
+org.apache.cordova.camera 0.3.3 "Camera"<br />
+org.apache.cordova.contacts 0.2.14 "Contacts"<br />
+org.apache.cordova.device 0.2.12 "Device"</code></p>
+<p>To install a specific version, use the @ syntax:</p>
+<p><code>$ cordova plugin add org.apache.cordova.camera@0.2.9</code></p>
+<p>or to ensure the latest plugin version, use the <code>latest</code> alias:</p>
+<p><code>$ cordova plugin add org.apache.cordova.camera@latest</code></p>
+<span style="background-color:#fbfac7; padding:0 2px;"><strong>Tip:</strong> To quickly search the plugin registry and get the id for a plugin, use the <code>$ cordova plugin search</code> command with any search term: </p>
+<p><code>$ cordova plugin search contacts<br />
+com.blackberry.pim.contacts - BlackBerry 10 Contacts APIs<br />
+com.kolwit.pickcontact - Native contact-picker overlay, accessing the address book<br />
+org.apache.cordova.contacts - Cordova Contacts Plugin</code><br />
+</span>
+<p><span style="background-color:#fbfac7; padding:0 2px;"><strong>Another Tip:</strong> To get all the data including versions available for a specific plugin, use the <span style="background-color:#DDF8FF; padding:0 2px;"></span><code>$ plugman info</code> command with the id of the plugin in question (assuming you have <a href="https://www.npmjs.org/package/plugman">plugman installed</a>, and you should if you don&#8217;t):</span><br />
+<br />
+<code>$ plugman info org.apache.cordova.camera</code><br />
+<br />
+You&#8217;ll get a ton of info back and will need to scroll up a bit to find the versions array, such as:</p>
+<p>versions:<br />
+      [ &#8216;0.2.1&#8217;,<br />
+        &#8216;0.2.3&#8217;,<br />
+        &#8216;0.2.4&#8217;,<br />
+        &#8216;0.2.5&#8217;,<br />
+        &#8216;0.2.6&#8217;,<br />
+        &#8216;0.2.7&#8217;,<br />
+        &#8216;0.2.8&#8217;,<br />
+        &#8216;0.2.9&#8217;,<br />
+        &#8216;0.3.0&#8217;,<br />
+        &#8216;0.3.1&#8217;,<br />
+        &#8216;0.3.2&#8217;,<br />
+        &#8216;0.3.3&#8217; ]</p>
+<p>The <a href="http://plugins.cordova.io">Plugins Registry</a> also lists all the versions for any given plugin in a drop-down list on the top right corner.  </p>
+<p><a href="http://devgirl.org/wp-content/uploads/2014/11/registry.png"><img src="http://devgirl.org/wp-content/uploads/2014/11/registry.png" alt="registry" width="600" height="328" class="aligncenter size-full wp-image-7503" /></a>
+</li>
+<p><div class="snvdshc"><div class="synved-box-message synved-box-success">All of the above commands work with the <code>phonegap</code> CLI as well since it is just a wrapper around the Cordova tooling to provide some additional features. If you&#8217;re an <a href="http://ionicframework.com">Ionic Framework</a> user, the same applies for their CLI. So you could do <code>$ phonegap platform list</code> and <code>$ ionic platform list</code> etc. </div></div>
+</ul>
+<h2>PhoneGap Versions</h2>
+<p>The main thing to know about the PhoneGap (Adobe-specific CLI) side of things is that the above applies except the <a href="http://phonegap.com/install/">overall PhoneGap version and CLI version (which are the same)</a> are generally a bit behind compared to the overall Cordova version due to the fact that the PhoneGap team needing to update it after the cordova version is available and testing needed to ensure compatibility with different things. Similar to cordova, to find the overall/CLI version of phonegap installed, type:<br />
+<br />
+<code>$ phonegap -v<br />
+3.6.0-0.21.19<br />
+</code></p>
+<p>When using the PhoneGap CLI versus the Cordova CLI, again the set of platforms can be different and will be based specifically on  the version number above since it encompasses both the CLI and the certain set of platform versions as I explained previously, such as:<br />
+<br />
+<code>$ phonegap platform list<br />
+Installed platforms: android 3.6.3, firefoxos 3.6.3, ios 3.6.3<br />
+Available platforms: amazon-fireos, blackberry10, browser<br />
+</code></p>
+<p>In this case some of the platform versions happen to match what I got from 4.0.0 in the top of the post since no independent platform releases were done between 3.6.0 and 4.0.0 apparently. The point is that you should never assume they will be the same between overall versions.</p>
+<p><strong>** NOTE:</strong> You can still add a specific platform version using the phonegap CLI with the @ syntax as described above:<br />
+<br />
+<code>$ phonegap platform add ios@3.7.0</code></p>
+<div class="snvdshc"><div class="synved-box-message synved-box-warning"><strong>NOTE:</strong> The versions of platform to overall version can be particularly confusing since they may be close or similar in numbers. This is especially true right now with the PhoneGap overall/CLI version since it&#8217;s at 3.6.0 and many of the platforms are 3.6.x as noted above. Keep the context in mind when reading about a particular fix being in a version since it may just be referring to the platform version (ios etc) versus the overall. </p>
+<p>For instance, this morning I installed <a href="http://cordova.apache.org/announcements/2014/11/06/cordova-ios-3.7.0.html">iOS v3.7.0</a> specifically to fix something since iOS 3.6.3 is the current default iOS version installed when you do <code>$ npm install cordova</code> and then add the iOS platform. This is because iOS v3.6.3 is the default version for overall/CLI version 4.0.0 currently the latest released, but iOS 3.7.0 will be the default when the overall (and CLI) <a href="http://cordova.apache.org/announcements/2014/11/06/cordova-ios-3.7.0.html">version 4.1.0</a> is released. </div></div>
+<h2>PhoneGap Build Versions</h3>
+<p><a href="http://build.phonegap.com">PhoneGap Build</a> supports an overall version of PhoneGap to do its compiling which is also typically behind the latest Cordova version a bit to ensure plugins are tested and compatible etc. For instance, right now it&#8217;s v3.6.3 which happens to match the PhoneGap Overall/CLI version, but this is not always the case. You can find the version used for your PhoneGap Build project in the UI for a given project such as shown with the arrow below:</p>
+<p><a href="http://devgirl.org/wp-content/uploads/2014/11/pgb-version1.png"><img src="http://devgirl.org/wp-content/uploads/2014/11/pgb-version1.png" alt="pgb-version" width="600" height="210" class="aligncenter size-full wp-image-7425" /></a><br />
+You may also notice a warning on the project to update if it&#8217;s an older project and a new version is available or recommended due to an important fix as shown in yellow above. </p>
+<p>To build with a specific version of PhoneGap, specify it in the config.xml preferences tag:<br />
+<br />
+<code>&lt;preference name="phonegap-version" value="3.5.0" /&gt;</code><br />
+</p>
+<h3>PhoneGap Build &#8211; Plugin Versions</h3>
+<p>You should also be aware of the version of plugin being used when building with PhoneGap Build. See <a href="https://build.phonegap.com/plugins">this link</a> for the latest default versions of plugins used by PhoneGap Build. It&#8217;s recommended to specify the plugin version you want to use in your config.xml as well in the <a href="http://docs.build.phonegap.com/en_US/configuring_plugins.md.html"><strong><gap:plugin></strong> tag explained here</a>. </p>
+<h2>Stay Informed!</h2>
+<p>I <strong><em>HIGHLY</em></strong> recommend you follow these accounts on twitter to stay on top of all new updates:</p>
+<h4>Twitter</h4>
+<ul>
+<li> <a href="http://twitter.com/@apachecordova">@apachecordova</a></li>
+<li><a href="https://twitter.com/PhoneGap">@PhoneGap</a></li>
+<li><a href="https://twitter.com/PhoneGapBuild">@PhoneGapBuild</a></li>
+</li>
+</ul>
+<span style="background-color:#fbfac7; padding:0 2px;"> <strong>Tip:</strong> Even if you find twitter a distraction, you could set up an id just to follow important account as these since it truly is the easiest way to stay on top of the latest.<br />
+</span>
+<p></p>
+<h4>Blogs / News / Mailing Lists</h4>
+<ul>
+<li> <a href="http://cordova.apache.org/#news">Apache Cordova News</a></li>
+<li><a href="http://phonegap.com/blog/phonegap/">PhoneGap Blog</a></li>
+<li><a href="http://phonegap.com/blog/phonegap-build/">PhoneGap Build Blog</a></li>
+<li><a href="http://cordova.apache.org/#mailing-list">Cordova Mailing List</a></li>
+<li><a href="http://phonegap.com/community/newsletter/">Sign up for the PhoneGap Newsletter</a></li>
+</li>
+</ul>
+<h3>Related Links</h3>
+<p>Please also see these related links to resources from my colleague <a href="https://twitter.com/raymondcamden">Ray Camden</a> in relation to all of the above:</p>
+<ul>
+<li><a href="http://www.raymondcamden.com/2014/4/24/Keeping-up-with-Cordova-and-PhoneGap">Keeping up with Cordova and PhoneGap</a> </li>
+<li><a href="http://www.raymondcamden.com/2014/10/3/Figuring-out-what-version-of-Cordova-created-a-project">Ray&#8217;s recent versions post</a> </li>
+</ul>
+<p><a class="a2a_button_twitter" href="http://www.addtoany.com/add_to/twitter?linkurl=http%3A%2F%2Fdevgirl.org%2F2014%2F11%2F07%2Fcordovaphonegap-version-confusion%2F&amp;linkname=Cordova%2FPhoneGap%20Version%20Confusion" title="Twitter" rel="nofollow" target="_blank"></a><a class="a2a_button_google_plus" href="http://www.addtoany.com/add_to/google_plus?linkurl=http%3A%2F%2Fdevgirl.org%2F2014%2F11%2F07%2Fcordovaphonegap-version-confusion%2F&amp;linkname=Cordova%2FPhoneGap%20Version%20Confusion" title="Google+" rel="nofollow" target="_blank"></a><a class="a2a_button_facebook" href="http://www.addtoany.com/add_to/facebook?linkurl=http%3A%2F%2Fdevgirl.org%2F2014%2F11%2F07%2Fcordovaphonegap-version-confusion%2F&amp;linkname=Cordova%2FPhoneGap%20Version%20Confusion" title="Facebook" rel="nofollow" target="_blank"></a><a class="a2a_dd a2a_target addtoany_share_save" href="https://www.addtoany.com/share#url=http%3A%2F%2Fdevgirl.org%2F2014%2F11%2F07%2Fcordovaphonegap-version-confusion%2F&amp;title=Cordova%2FPhoneGap%20Version%20Confusion" id="wpa2a_18"></a></p>]]></content:encoded>
+			<wfw:commentRss>http://devgirl.org/2014/11/07/cordovaphonegap-version-confusion/feed/</wfw:commentRss>
+		<slash:comments>1</slash:comments>
+		</item>
+		<item>
+		<title>New Icons and Splash Screen Help for Cordova/PhoneGap Apps</title>
+		<link>http://devgirl.org/2014/09/29/new-icons-and-splash-screen-help-for-cordovaphonegap/</link>
+		<comments>http://devgirl.org/2014/09/29/new-icons-and-splash-screen-help-for-cordovaphonegap/#comments</comments>
+		<pubDate>Mon, 29 Sep 2014 14:05:39 +0000</pubDate>
+		<dc:creator><![CDATA[Holly Schinsky]]></dc:creator>
+				<category><![CDATA[Cordova]]></category>
+		<category><![CDATA[ionic]]></category>
+		<category><![CDATA[iOS]]></category>
+		<category><![CDATA[Mobile Development]]></category>
+		<category><![CDATA[PhoneGap]]></category>
+		<category><![CDATA[cordova icon config]]></category>
+		<category><![CDATA[cordova icons]]></category>
+		<category><![CDATA[cordova splash config]]></category>
+		<category><![CDATA[cordova splash config.xml]]></category>
+		<category><![CDATA[cordova splash screen]]></category>
+		<category><![CDATA[phonegap icon config]]></category>
+		<category><![CDATA[phonegap splash config]]></category>
+		<category><![CDATA[phonegap splash config.xml]]></category>
+
+		<guid isPermaLink="false">http://devgirl.org/?p=7361</guid>
+		<description><![CDATA[The Cordova CLI recently included some updates developers may not be aware of but find helpful in configuring splash screens and icons for their mobile apps. There&#8217;s now support for a]]></description>
+				<content:encoded><![CDATA[<p><a href="http://devgirl.org/wp-content/uploads/2014/02/cordova_bot.png"><img src="http://devgirl.org/wp-content/uploads/2014/02/cordova_bot-150x150.png" alt="cordova_bot" width="150" height="150" class="alignleft size-thumbnail wp-image-6568" /></a>The <a href="https://github.com/apache/cordova-cli/">Cordova CLI</a> recently included some updates developers may not be aware of but find helpful in configuring splash screens and icons for their mobile apps. There&#8217;s now support for a <a href=https://issues.apache.org/jira/browse/CB-3571"><code>&lt;splash&gt;</code> and <code><a href="https://issues.apache.org/jira/browse/CB-2606">&lt;icon&gt;</a></code> elements in the <strong>config.xml</strong> file. You can use these elements to specify each of the splash screen images and icons desired per platform and they will now be copied into their respective platform locations for you. Prior to this change you would need to use <a href="http://devgirl.org/2013/11/12/three-hooks-your-cordovaphonegap-project-needs/">hook</a> or copy them down to their platform folders manually; not ideal. These changes also make it much better for managing your assets from a source control and team perspective since you don&#8217;t want to check in your platforms folders but can now keep them in their own folders along with the <em>www</em>. </p>
+<p>The tags look like the following but you would include <a href="http://cordova.apache.org/docs/en/edge/config_ref_images.md.html#Icons%20and%20Splash%20Screens">a list of them</a> for all the sizes you want to support under each platform:</p>
+<pre class="brush: plain; title: ; notranslate">
+&lt;platform name=&quot;ios&quot;&gt;
+     &lt;icon src=&quot;icons/myIcon.png&quot; width=&quot;80&quot; height=&quot;80&quot; /&gt;    	     
+&lt;/platform&gt;
+&lt;platform name=&quot;ios&quot;&gt;
+     &lt;splash src=&quot;iphone/splash-default.png&quot; width=&quot;2048&quot; height=&quot;1536&quot;/&gt;
+&lt;/platform&gt;
+</pre>
+<div class="snvdshc"><div class="synved-box-message synved-box-info">If specified, the icons and splash screens will get copied down when a platform is added (<code>cordova platform add ios)</code>. They will also get copied again upon build (<code>cordova build ios)</code> though if you specified them after a platform had been added.</div></div>
+<p>Check out the <a href="http://cordova.apache.org/docs/en/edge/config_ref_images.md.html#Icons%20and%20Splash%20Screens">docs for details</a> on how to configure the icons splash screens for the different platforms and sizes. I tested this out on iOS and Android myself and it worked great. </p>
+<p>Some things to be aware of&#8230; </p>
+<ul>
+<li>The image paths you specify are relative to the <em>root</em> project folder, NOT the <em>www</em> folder</li>
+<p></p>
+<li>The names of the images will change to what the CLI defaults them to in their final destination so don&#8217;t be confused if you don&#8217;t see the same file names. They are renamed to defaults based on the sizes or densities specified. For instance, if I have the following specified for a splash screen size for iOS pointing to my image in the <em><strong>rootProj/iphone</strong></em> folder named <code>mySplash.png</code>:
+<pre class="brush: plain; title: ; notranslate">
+&lt;platform name=&quot;ios&quot;&gt;
+    &lt;splash src=&quot;iphone/mySplash.png&quot; width=&quot;320&quot; height=&quot;480&quot;/&gt;
+&lt;/platform&gt;
+</pre>
+<p>It will be placed in the ios platform splash location (ie: <em>rootProj/platforms/ios/HelloCordova/Resources/splash</em>) as <code>Default~iphone.png</code> since that&#8217;s the size that it matched.
+</li>
+<p></p>
+<li>
+If you specify just one icon for a platform, that same icon will be used for all resolutions across the board. </p>
+<pre class="brush: plain; title: ; notranslate">
+&lt;platform name=&quot;android&quot;&gt;
+    &lt;icon src=&quot;myIcon.png&quot;/&gt;
+&lt;/platform&gt;
+
+&lt;platform name=&quot;ios&quot;&gt;
+    &lt;icon src=&quot;myIcon.png&quot;/&gt;
+&lt;/platform&gt;
+</pre>
+<p><span style="background-color:#fbfac7; padding:0 2px;">  <strong>***Update: </strong></span> If you visited previously and saw a mention about support for <a href="http://www.imagemagick.org/">Imagemagick</a> to resize a single icon to all resolutions, this feature was not actually contained in the 3.6 version of the Cordova CLI as I explained it originally and I really apologize for any confusion. It was actually <a href="https://github.com/leahciMic/cordova-cli/commit/f36666ddb03c49e61ed123022dc8d55e0742aeba">a forked version </a>that was not included in the Cordova release. </p>
+<p><strong>HOWEVER</strong>, this is still possible to achieve using this <a href="https://www.npmjs.org/package/cordova-icon">cordova-icon</a> package in a <a href="http://devgirl.org/2013/11/12/three-hooks-your-cordovaphonegap-project-needs/">cordova hook</a> upon build with a single image file (1024&#215;1024 recommended). Your image file will be resized to all of the different icon sizes and copied down to the different platforms. The <a href="https://www.npmjs.org/package/cordova-icon">cordova-icon npm page</a> has a couple of instructions to follow to set this up but is very straightforward. You should also check out <a href="http://alexdisler.com/blog/how-to-develop-faster-with-ionic-and-cordova/">Alex&#8217;s blog post</a> about this topic for more details.</p>
+<p><div class="snvdshc"><div class="synved-box-message synved-box-info">Remember the above is only needed if you want to use one image to be resized for your project. If you specify an icon element in your config.xml per density, the CLI will copy those in for you. If you want to use a UI tool to generate icon sizes for you originally to then manually add to the config.xml after, check out <a href="http://makeappicon.com/">MakeAppIcon</a>.</div></div>
+</li>
+<p></p>
+<li>If you&#8217;re wondering about iOS8 support for <a href="https://developer.apple.com/library/ios/documentation/userexperience/conceptual/mobilehig/IconMatrix.html#//apple_ref/doc/uid/TP40006556-CH27-SW1">iPhone 6 and iPhone 6 Plus</a> icons and splash screens, it&#8217;s in progress and you can find out the latest status <a href="https://issues.apache.org/jira/browse/CB-7043">here</a> (see subtasks 48-53). This issue tracks all things being worked on for iOS8 support so you may want to bookmark it for general reference. </li>
+<p></p>
+<li>You can include both <em>splash</em> and <em>icon</em> elements in the same parent <em>platform</em> element in your config.xml file, such as:
+<pre class="brush: plain; title: ; notranslate">
+&lt;platform name=&quot;ios&quot;&gt;
+    &lt;icon src=&quot;icons/myIcon.png&quot; width=&quot;80&quot; height=&quot;80&quot; /&gt;    	
+    &lt;splash src=&quot;iphone/mySplash.png&quot; width=&quot;320&quot; height=&quot;480&quot;/&gt;
+&lt;/platform&gt;
+</pre>
+<p>They don&#8217;t have to be separate unless you want to do so for readability.
+</li>
+<p></p>
+<li>If you develop with the <a href="http://ionicframework.com">Ionic</a> framework this change is available to you since the Ionic CLI wraps the Cordova CLI. </li>
+<p></p>
+<li>This change has not landed in the <a href="https://github.com/phonegap/phonegap-cli">PhoneGap CLI</a> yet but should be coming in the next version soon. </li>
+<p></p>
+<li>Don&#8217;t confuse this with the <a href="http://docs.build.phonegap.com/en_US/configuring_icons_and_splash.md.html">PhoneGap Build</a> elements that are used for icons and splash screens, though they offer similar support, they are separate and you should follow the <a href="http://cordova.apache.org/docs/en/edge/config_ref_images.md.html#Icons%20and%20Splash%20Screens">documentation for the CLI</a>. </li>
+</ul>
+<div class="snvdshc"><div class="synved-box-message synved-box-success">The <code>&lt;icon&gt;</code> support appeared in version 3.5, a bit prior to the <code>&lt;splash&gt;</code> screen element support, but I still wanted to point out both in case some were not aware of it.</div></div>
+<p>I posted about <a href="http://devgirl.org/2013/09/12/phonegap-icons-and-splash-screens-help/">icons and splash screens help awhile back here</a> in case it&#8217;s useful as a related reference. </p>
+<p><a class="a2a_button_twitter" href="http://www.addtoany.com/add_to/twitter?linkurl=http%3A%2F%2Fdevgirl.org%2F2014%2F09%2F29%2Fnew-icons-and-splash-screen-help-for-cordovaphonegap%2F&amp;linkname=New%20Icons%20and%20Splash%20Screen%20Help%20for%20Cordova%2FPhoneGap%20Apps" title="Twitter" rel="nofollow" target="_blank"></a><a class="a2a_button_google_plus" href="http://www.addtoany.com/add_to/google_plus?linkurl=http%3A%2F%2Fdevgirl.org%2F2014%2F09%2F29%2Fnew-icons-and-splash-screen-help-for-cordovaphonegap%2F&amp;linkname=New%20Icons%20and%20Splash%20Screen%20Help%20for%20Cordova%2FPhoneGap%20Apps" title="Google+" rel="nofollow" target="_blank"></a><a class="a2a_button_facebook" href="http://www.addtoany.com/add_to/facebook?linkurl=http%3A%2F%2Fdevgirl.org%2F2014%2F09%2F29%2Fnew-icons-and-splash-screen-help-for-cordovaphonegap%2F&amp;linkname=New%20Icons%20and%20Splash%20Screen%20Help%20for%20Cordova%2FPhoneGap%20Apps" title="Facebook" rel="nofollow" target="_blank"></a><a class="a2a_dd a2a_target addtoany_share_save" href="https://www.addtoany.com/share#url=http%3A%2F%2Fdevgirl.org%2F2014%2F09%2F29%2Fnew-icons-and-splash-screen-help-for-cordovaphonegap%2F&amp;title=New%20Icons%20and%20Splash%20Screen%20Help%20for%20Cordova%2FPhoneGap%20Apps" id="wpa2a_20"></a></p>]]></content:encoded>
+			<wfw:commentRss>http://devgirl.org/2014/09/29/new-icons-and-splash-screen-help-for-cordovaphonegap/feed/</wfw:commentRss>
+		<slash:comments>2</slash:comments>
+		</item>
+	</channel>
+</rss>

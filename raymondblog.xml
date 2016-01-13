@@ -1,0 +1,571 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" media="screen" href="/~d/styles/rss2full.xsl"?><?xml-stylesheet type="text/css" media="screen" href="http://feeds.feedburner.com/~d/styles/itemcontent.css"?><rss xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:wfw="http://wellformedweb.org/CommentAPI/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:sy="http://purl.org/rss/1.0/modules/syndication/" xmlns:slash="http://purl.org/rss/1.0/modules/slash/" version="2.0">
+
+<channel>
+	<title>Raymond Camden's Blog</title>
+	
+	<link>http://www.raymondcamden.com</link>
+	<description>Web Standards, JavaScript, and Kittens</description>
+	<lastBuildDate>Thu, 07 Jan 2016 21:03:48 +0000</lastBuildDate>
+	<language>en-US</language>
+	<sy:updatePeriod>hourly</sy:updatePeriod>
+	<sy:updateFrequency>1</sy:updateFrequency>
+	
+	<atom10:link xmlns:atom10="http://www.w3.org/2005/Atom" rel="self" type="application/rss+xml" href="http://feeds.feedburner.com/RaymondCamdensBlog" /><feedburner:info xmlns:feedburner="http://rssnamespace.org/feedburner/ext/1.0" uri="raymondcamdensblog" /><atom10:link xmlns:atom10="http://www.w3.org/2005/Atom" rel="hub" href="http://pubsubhubbub.appspot.com/" /><feedburner:emailServiceId xmlns:feedburner="http://rssnamespace.org/feedburner/ext/1.0">RaymondCamdensBlog</feedburner:emailServiceId><feedburner:feedburnerHostname xmlns:feedburner="http://rssnamespace.org/feedburner/ext/1.0">https://feedburner.google.com</feedburner:feedburnerHostname><item>
+		<title>Playing with StrongLoop – Building a Blog – Part Two</title>
+		<link>http://www.raymondcamden.com/2016/01/07/playing-with-strongloop-building-a-blog-part-two</link>
+		<comments>http://www.raymondcamden.com/2016/01/07/playing-with-strongloop-building-a-blog-part-two#respond</comments>
+		<pubDate>Thu, 07 Jan 2016 21:03:48 +0000</pubDate>
+		<dc:creator><![CDATA[ray]]></dc:creator>
+				<category><![CDATA[Development]]></category>
+		<category><![CDATA[JavaScript]]></category>
+		<category><![CDATA[nodejs]]></category>
+		<category><![CDATA[StrongLoop]]></category>
+
+		<guid isPermaLink="false">http://www.raymondcamden.com/?p=7376</guid>
+		<description><![CDATA[Welcome to the next blog entry in my series describing building a real (kinda) application with StrongLoop. In the last entry, I talked about the application I was creating (a simple blog), built the model, and demonstrated how to work with the model on the server-side. I completely skipped over using the REST APIs to [&#8230;]]]></description>
+				<content:encoded><![CDATA[<p>Welcome to the next blog entry in my series describing building a real (kinda) application with <a href="http://www.strongloop.com">StrongLoop</a>. In the <a href="http://www.raymondcamden.com/2016/01/05/playing-with-strongloop-building-a-blog-part-one">last entry</a>, I talked about the application I was creating (a simple blog), built the model, and demonstrated how to work with the model on the server-side. I completely skipped over using the REST APIs to focus on a simple content-driven dynamic site.</p>
+<p><span id="more-7376"></span></p>
+<p>In this post, I&#8217;m going to cover how I can lock down those APIs. This is in preparation for working on an admin for the blog in a later post. This post will be a bit short as this a topic I covered in depth a few months ago (<a href="http://www.raymondcamden.com/2015/10/21/working-with-strongloop-part-four-locking-down-the-api">Working with StrongLoop (Part Four) – Locking down the API</a>), but I wanted to discuss the topic again to call out a few things I missed last time. I suggest reading that earlier post to give some additional context to what I&#8217;m describing below.</p>
+<p>So first off &#8211; out of the box your models are completely CRUDable (create/read/update/delete) via the REST API. This is handy, but of course you want to lock down these APIs so folks don&#8217;t pepper your site with SEO spam. </p>
+<p>As I discussed in my <a href="http://www.raymondcamden.com/2015/10/21/working-with-strongloop-part-four-locking-down-the-api">earlier post</a>, locking down your API is as simple as using <code>slc loopback:acl</code>. Here is an example:</p>
+<p><img src="http://www.raymondcamden.com/wp-content/uploads/2015/10/shot17.png" alt="shot1" width="750" height="164" class="aligncenter size-full wp-image-6973" /></p>
+<p>In the end, the CLI simply updates the model&#8217;s JSON definition file. In general, the lock down process is:</p>
+<ul>
+<li>Block everything!</li>
+<li>Allow anon folks to read</li>
+<li>Allow auth users to write</li>
+</ul>
+<p>Here is how this looks in JSON:</p>
+<pre><code class="language-javascript">
+"acls": [
+   {
+      "accessType": "*",
+      "principalType": "ROLE",
+      "principalId": "$everyone",
+      "permission": "DENY"
+    },
+    {
+      "accessType": "READ",
+      "principalType": "ROLE",
+      "principalId": "$everyone",
+      "permission": "ALLOW"
+    },
+    {
+      "accessType": "WRITE",
+      "principalType": "ROLE",
+      "principalId": "$authenticated",
+      "permission": "ALLOW"
+    }
+</code></pre>
+<p>Of course, this assumes a security model where every logged in user is an admin. More complex apps will probably have different roles associated with users. So in a blog, you may have users who can write content, but only some who can <i>publish</i> content so that the entry is publicly readable. For now I&#8217;m sticking with the simple system of allowing logged in users full power.</p>
+<p>I did this for both entry and category. Remember, these are the primary model types for my blog.</p>
+<p>I then created a new model called appuser. Again, I discussed this in the previous entry, but while Loopback has a core User object, it is strongly suggested you extend this type into your own for your application. One thing I didn&#8217;t demonstrate in the previous post was how this was done in the Composer app. It is a simple matter of making a new type and changing <code>Base model</code> to User.</p>
+<p><img src="http://www.raymondcamden.com/wp-content/uploads/2016/01/shot1-2.png" alt="shot1" width="750" height="332" class="aligncenter size-full wp-image-7377" /></p>
+<p>Next I needed to test this. Again, I mentioned in the other post about how you can use the web-based Explorer to login, but it occurs to me that I didn&#8217;t actually show how that is done. Login is just another REST method! If you select your user type, you can scroll down to a login method. You then need to enter a JSON object containing your credentials.</p>
+<p><img src="http://www.raymondcamden.com/wp-content/uploads/2016/01/sl-login.png" alt="sl login" width="750" height="421" class="aligncenter size-full wp-image-7378" /></p>
+<p>After you login, make note of the response. The ID contains a token:</p>
+<p><img src="http://www.raymondcamden.com/wp-content/uploads/2016/01/Explorer-token.png" alt="Explorer-token" width="750" height="279" class="aligncenter size-full wp-image-7379" /></p>
+<p>(<i>Image taken from StrongLoop docs: <a href="https://docs.strongloop.com/display/public/LB/Introduction+to+User+model+authentication">Introduction to User model authentication</a></i>)</p>
+<p>You take that and then paste it into the token field on top of the explorer.</p>
+<p><img src="http://www.raymondcamden.com/wp-content/uploads/2016/01/shot2-1.png" alt="shot2" width="503" height="129" class="aligncenter size-full wp-image-7380" /></p>
+<p>This ensures your later calls via the explorer are authenticated. To be sure, I tested posting a new entry before being logged in:</p>
+<p><img src="http://www.raymondcamden.com/wp-content/uploads/2016/01/shot3-1.png" alt="shot3" width="750" height="1107" class="aligncenter size-full wp-image-7381" /></p>
+<p>Then I confirmed I could create after logging in:</p>
+<p><img src="http://www.raymondcamden.com/wp-content/uploads/2016/01/shot4-1.png" alt="shot4" width="750" height="632" class="aligncenter size-full wp-image-7382" /></p>
+<p>I bet your curious about the server-side API. Is it impacted by ACLs? Nope. I guess that&#8217;s expected, but I was curious. Basically your Node.js code executes like a root user.</p>
+<p>The updated version of the code can be found here: <a href="https://github.com/cfjedimaster/StrongLoopDemos/tree/master/blog2">https://github.com/cfjedimaster/StrongLoopDemos/tree/master/blog2</a>. </p>
+]]></content:encoded>
+			<wfw:commentRss>http://www.raymondcamden.com/2016/01/07/playing-with-strongloop-building-a-blog-part-two/feed</wfw:commentRss>
+		<slash:comments>0</slash:comments>
+		</item>
+		<item>
+		<title>Seeding data for a StrongLoop app</title>
+		<link>http://www.raymondcamden.com/2016/01/06/seeding-data-for-a-strongloop-app</link>
+		<comments>http://www.raymondcamden.com/2016/01/06/seeding-data-for-a-strongloop-app#respond</comments>
+		<pubDate>Wed, 06 Jan 2016 21:21:03 +0000</pubDate>
+		<dc:creator><![CDATA[ray]]></dc:creator>
+				<category><![CDATA[Development]]></category>
+		<category><![CDATA[JavaScript]]></category>
+		<category><![CDATA[nodejs]]></category>
+		<category><![CDATA[StrongLoop]]></category>
+
+		<guid isPermaLink="false">http://www.raymondcamden.com/?p=7366</guid>
+		<description><![CDATA[Please Read! A few hours after posting this, a member of the StrongLoop team pointed out an alternative that did exactly what I wanted to accomplish in about one second of typing. I still think the core of this blog entry makes sense as is so I&#8217;m not editing it, but see the note at [&#8230;]]]></description>
+				<content:encoded><![CDATA[<div style="border-style:solid;border-width:thin;padding:5px"><strong>Please Read! A few hours after posting this, a member of the StrongLoop team pointed out an alternative that did exactly what I wanted to accomplish in about one second of typing. I still think the <i>core</i> of this blog entry makes sense as is so I&#8217;m not editing it, but see the note at the bottom!</strong></div>
+<p>This is just a quick post as a followup to something I mentioned in my <a href="http://www.raymondcamden.com/2016/01/05/playing-with-strongloop-building-a-blog-part-one">post yesterday</a> on building a blog with <a href="http://www.strongloop.com">Strongloop</a>. I mentioned that while working on my application, I kept losing my temporary data as I was using the &#8220;In Memory&#8221; datasource that is the default persistence method for data. That&#8217;s not a bug &#8211; in memory means exactly that &#8211; in memory &#8211; and as I restarted the app (using <a href="http://nodemon.io/">nodemon</a>), I had to re-enter fake data to test.</p>
+<p>While it takes all of three minutes to connect your app to Mongo, if you don&#8217;t have Mongo (or MySQL, or a db in general), it would be nice to be able to stick with the simple RAM based system while prototyping.</p>
+<p><span id="more-7366"></span></p>
+<p>One of the things I realized is that Strongloop will run a set of scripts inside the boot directory on startup. In theory, that could be used to set some seed data. <a href="https://jordankasper.com/">Jordan Kasper</a> (evangelist for StrongLoop, which sounds like a fun job, ahem) shared this script with me as an example:</p>
+<p><a href="https://github.com/strongloop-training/coffee-time/blob/master/server/boot/create-sample-model-data.js">https://github.com/strongloop-training/coffee-time/blob/master/server/boot/create-sample-model-data.js</a></p>
+<pre><code class="language-javascript">
+var async = require('async');
+var mysqlDatasourceName = 'mysql_dev';
+var mongoDatasourceName = 'mongodb_dev';
+
+module.exports = function(app) {
+  //data sources
+  var mongoDs = app.dataSources[mongoDatasourceName];
+  var mysqlDs = app.dataSources[mysqlDatasourceName];
+  //create all models
+  async.parallel({
+    reviewers: async.apply(createReviewers),
+    coffeeShops: async.apply(createCoffeeShops),
+  }, function(err, results) {
+    if (err) throw err;
+    createReviews(results.reviewers, results.coffeeShops, function(err) {
+      if (err) throw err;
+      console.log('&gt; models created sucessfully');
+    });
+  });
+  //create reviewers
+  function createReviewers(cb) {
+    mongoDs.automigrate('Reviewer', function(err) {
+      if (err) return cb(err);
+      var Reviewer = app.models.Reviewer;
+      Reviewer.create([
+        {email: 'foo@bar.com', password: 'foobar'},
+        {email: 'john@doe.com', password: 'johndoe'},
+        {email: 'jane@doe.com', password: 'janedoe'}
+      ], cb);
+    });
+  }
+  //create coffee shops
+  function createCoffeeShops(cb) {
+    mysqlDs.automigrate('CoffeeShop', function(err) {
+      if (err) return cb(err);
+      var CoffeeShop = app.models.CoffeeShop;
+      var shops = [
+        {name: 'Bel Cafe',openingHour:10, closingHour:18},
+        {name: 'Three Bees Coffee House',openingHour:6, closingHour:15},
+        {name: 'Caffe Artigiano',openingHour:17, closingHour:24},
+      ];
+      //add city if it's in the model
+      if(CoffeeShop.definition.properties.hasOwnProperty('city')){
+        var cities = ['Vancouver', 'San Mateo'];
+        shops.forEach(function(shop, idx){
+          shop.city = cities[idx%2];
+        });
+      }
+      CoffeeShop.create(shops, cb);
+    });
+  }
+  //create reviews
+  function createReviews(reviewers, coffeeShops, cb) {
+    mongoDs.automigrate('Review', function(err) {
+      if (err) return cb(err);
+      var Review = app.models.Review;
+      var DAY_IN_MILLISECONDS = 1000 * 60 * 60 * 24;
+      Review.create([
+        {
+          date: Date.now() - (DAY_IN_MILLISECONDS * 4),
+          rating: 5,
+          comments: 'A very good coffee shop.',
+          publisherId: reviewers[0].id,
+          coffeeShopId: coffeeShops[0].id,
+        },
+        {
+          date: Date.now() - (DAY_IN_MILLISECONDS * 3),
+          rating: 5,
+          comments: 'Quite pleasant.',
+          publisherId: reviewers[1].id,
+          coffeeShopId: coffeeShops[0].id,
+        },
+        {
+          date: Date.now() - (DAY_IN_MILLISECONDS * 2),
+          rating: 4,
+          comments: 'It was ok.',
+          publisherId: reviewers[1].id,
+          coffeeShopId: coffeeShops[1].id,
+        },
+        {
+          date: Date.now() - (DAY_IN_MILLISECONDS),
+          rating: 4,
+          comments: 'I go here everyday.',
+          publisherId: reviewers[2].id,
+          coffeeShopId: coffeeShops[2].id,
+        }
+      ], cb);
+    });
+  }
+};
+</code></pre>
+<p>I&#8217;m still new to Strongloop and Loopback in general, but this makes sense. My needs were far simpler, so here is a script I came up with (and again, Jordan helped me make it better) that just writes to a model in the in-memory datasource.</p>
+<pre><code class="language-javascript">
+var chalk = require('chalk');
+
+console.log(chalk.magenta('Lets seed this app!'));
+
+/*
+This script is based on: 
+https://github.com/strongloop-training/coffee-time/blob/master/server/boot/create-sample-model-data.js
+*/
+
+module.exports = function(app) {
+
+	//sample data
+	var data = [
+		{
+			title:'Content One', 
+			body:'Body One',
+			posted:new Date()
+		},
+		{
+			title:'Content Two', 
+			body:"Body Two",
+			posted:new Date()
+		},
+		{
+			title:'Content Three', 
+			body:'Body Three',
+			posted:new Date()
+		}
+	];
+	
+	app.models.TestContent.create(data, function(err, records) {
+		if (err) { return console.log(chalk.red(err.message)); }
+		console.log(chalk.magenta('Done seeding data, '+records.length+' records created.'));
+	});
+	
+}
+</code></pre>
+<p>Pretty simple, and it works nicely.</p>
+<p><img src="http://www.raymondcamden.com/wp-content/uploads/2016/01/shot1-1.png" alt="shot1" width="550" height="385" class="aligncenter size-full wp-image-7367" /></p>
+<h2>But Wait &#8211; There&#8217;s More!</h2>
+<p>So as I said up on top, a few hours after posting this, Rand Mckinney from StrongLoop shared this link with me: <a href="https://docs.strongloop.com/display/public/LB/Memory+connector#Memoryconnector-Datapersistence">Data persistence</a>. In  this doc they mention that you can simply specify a JSON file for the datasource and the in memory data will persist to it. Like, seriously, <i>exactly</i> what I had wanted. Here is an example:</p>
+<pre><code class="language-javascript">
+{                                                                                       
+  "db": {
+    "name": "db",
+    "connector": "memory",
+    "file": "mydata.json"
+  }
+}
+</code></pre>
+<p>Still &#8211; probably &#8211; a bad idea in production &#8211; but as I said &#8211; this would be incredibly useful when prototyping!</p>
+]]></content:encoded>
+			<wfw:commentRss>http://www.raymondcamden.com/2016/01/06/seeding-data-for-a-strongloop-app/feed</wfw:commentRss>
+		<slash:comments>0</slash:comments>
+		</item>
+		<item>
+		<title>My first O’Reilly Book: Client-Side Data Storage</title>
+		<link>http://www.raymondcamden.com/2016/01/06/my-first-oreilly-book-client-side-data-storage</link>
+		<comments>http://www.raymondcamden.com/2016/01/06/my-first-oreilly-book-client-side-data-storage#comments</comments>
+		<pubDate>Wed, 06 Jan 2016 14:04:37 +0000</pubDate>
+		<dc:creator><![CDATA[ray]]></dc:creator>
+				<category><![CDATA[Development]]></category>
+		<category><![CDATA[JavaScript]]></category>
+
+		<guid isPermaLink="false">http://www.raymondcamden.com/?p=7361</guid>
+		<description><![CDATA[While I&#8217;ve released a few videos for O&#8217;Reilly already (you can find all my ORA material on my author page), today I&#8217;m happy to announce the release of my first book. This is &#8211; to me &#8211; the coolest day ever. Since I began working in this industry (a long, long time ago), ORA books [&#8230;]]]></description>
+				<content:encoded><![CDATA[<p>While I&#8217;ve released a few videos for O&#8217;Reilly already (you can find all my ORA material on my <a href="http://www.oreilly.com/pub/au/3437">author page</a>), today I&#8217;m happy to announce the release of my first book. This is &#8211; to me &#8211; the coolest day ever. Since I began working in this industry (a long, <i>long</i> time ago), ORA books have always been the best of the best. While I&#8217;ve worked for multiple publishers over the past twenty years, this was my first opportunity to write a book for ORA. It isn&#8217;t terribly long &#8211; but frankly &#8211; shorter technical books can be more impactful I think.</p>
+<p>The book, <a href="http://shop.oreilly.com/product/0636920043676.do#">Client-Side Data Storage: Keeping it Local</a>, focuses on a topic that I&#8217;ve been interested in for a few years now &#8211; client-side storage for web apps. While this is still somewhat of a chaotic space, platform support for data storage is constantly improving. </p>
+<p>In my book, I go over all the major types of storage (even cookies, because yes, they still work) and provide easy to understand explanations and plenty of demos. </p>
+<p>I was honored to have <a href="http://nolanlawson.com/">Nolan Lawson</a> review the book, and this is what he had to say:</p>
+<p>&#8220;Provides a great overview of the (oft-underexplored) browser storage landscape. A must-read for anyone looking to get started with offline storage and rich webapps.&#8221;</p>
+<p>I consider myself an expert in this space, and Nolan is the person <i>I</i> go to so I think this is pretty incredible praise. </p>
+<p>Anyway, as always, I&#8217;d love to know what you think. If you pick up the book, let me know in the comments below, and enjoy!</p>
+<p><a href="http://shop.oreilly.com/product/0636920043676.do#"><img src="http://www.raymondcamden.com/wp-content/uploads/2016/01/lrg.jpg" alt="lrg" width="500" height="656" class="aligncenter size-full wp-image-7362" /></a></p>
+]]></content:encoded>
+			<wfw:commentRss>http://www.raymondcamden.com/2016/01/06/my-first-oreilly-book-client-side-data-storage/feed</wfw:commentRss>
+		<slash:comments>1</slash:comments>
+		</item>
+		<item>
+		<title>Playing with StrongLoop – Building a Blog – Part One</title>
+		<link>http://www.raymondcamden.com/2016/01/05/playing-with-strongloop-building-a-blog-part-one</link>
+		<comments>http://www.raymondcamden.com/2016/01/05/playing-with-strongloop-building-a-blog-part-one#comments</comments>
+		<pubDate>Tue, 05 Jan 2016 22:16:50 +0000</pubDate>
+		<dc:creator><![CDATA[ray]]></dc:creator>
+				<category><![CDATA[Development]]></category>
+		<category><![CDATA[JavaScript]]></category>
+		<category><![CDATA[nodejs]]></category>
+		<category><![CDATA[StrongLoop]]></category>
+
+		<guid isPermaLink="false">http://www.raymondcamden.com/?p=7350</guid>
+		<description><![CDATA[This year I&#8217;ve decided I&#8217;m going to write the hell out of some Node code. That&#8217;s both good and bad. It means I&#8217;ll be learning more and more about Node as a side effect but on the flip side, I&#8217;ll probably be producing a bunch of silly, not-terribly-practical examples as I go along. As always, [&#8230;]]]></description>
+				<content:encoded><![CDATA[<p>This year I&#8217;ve decided I&#8217;m going to write the hell out of some Node code. That&#8217;s both good and bad. It means I&#8217;ll be learning more and more about Node as a side effect but on the flip side, I&#8217;ll probably be producing a bunch of silly, not-terribly-practical examples as I go along. As always, I encourage people to remember that I am <i>not</i> an expert at this. I&#8217;m learning. So please feel free to comment about what you would do differently. On the flip side &#8211; if I actually make something kinda cool, then let&#8217;s just pretend I&#8217;m brilliant, ok?</p>
+<p>During the holiday break, I decided to work on a new demo application using <a href="http://www.strongloop.com">StrongLoop</a>. I&#8217;ve blogged about StrongLoop before, specifically about using it to help build APIs powered by Node. There&#8217;s a lot more to StrongLoop and I hope to share that with you as the year goes on. But for now, I want to focus on the Loopback-powered aspects of StrongLoop, specifically using the ORM-like APIs to work with data. </p>
+<p><span id="more-7350"></span></p>
+<p>With that in mind, I decided I&#8217;d begin by building a blog. To be absolutely clear, I&#8217;m not advocating that you go out and build a blog with StrongLoop. Just use WordPress. (Yes, even with my complaints about it, I&#8217;d just use it.) Or a static site generator. But when I&#8217;m practicing a new language, I like to build things where I can focus on the language and architecture instead of figuring out features. We all know what a blog is. That makes it easier to get started.</p>
+<p>For the first version, I figured I&#8217;d support a home page that lists blog entries and a detail view of the blog post. That&#8217;s it. I&#8217;m going to save both administration, and security, for the next update.</p>
+<p>I created a new StrongLoop app (as simple as <code>slc loopback</code>) and then fired up StrongLoop Arc to work with the composer. I decided on two different models: entry and category. Entry, obviously, represents a blog entry. Here is how I designed it in the web app:</p>
+<p><img src="http://www.raymondcamden.com/wp-content/uploads/2016/01/shot1.png" alt="shot1" width="750" height="414" class="aligncenter size-full wp-image-7351" /></p>
+<p>I assume most of this makes sense as is, but you may be confused by the <code>slug</code> property. The slug is what comes at the end of the URL and is typically the title minus any special characters. In a real world app the editor would default this for you and you would only modify it on rare occasions. We could also set it automatically via Loopback too. (And we&#8217;re going to do something kinda like that in a few minutes.)</p>
+<p>I then defined a category type:</p>
+<p><img src="http://www.raymondcamden.com/wp-content/uploads/2016/01/shot2.png" alt="shot2" width="750" height="356" class="aligncenter size-full wp-image-7352" /></p>
+<p>I then went back to Entry to set up the relationship. This is where I hit my first issue. While you can define a property of another type, it is a singular property. So I could add a category field to Entry but I&#8217;d only be able to assign one category to an entry. Of course, Loopback supports all kinds of &#8220;multi&#8221; relations, but unfortunately, the web based admin doesn&#8217;t support setting it. Nor will it report it either. In the first screen shot, I&#8217;ve already got things working fine, but there&#8217;s no indication of it.</p>
+<p>Luckily, it takes about 5 seconds to define the relationship via the CLI. You simply type <code>slc loopback:relation</code> and you are prompted for the model to modify:</p>
+<p><img src="http://www.raymondcamden.com/wp-content/uploads/2016/01/shot3.png" alt="shot3" width="539" height="193" class="aligncenter size-full wp-image-7353" /></p>
+<p>Then the type of relation:</p>
+<p><img src="http://www.raymondcamden.com/wp-content/uploads/2016/01/shot4.png" alt="shot4" width="590" height="138" class="aligncenter size-full wp-image-7354" /></p>
+<p>Then what to connect to:</p>
+<p><img src="http://www.raymondcamden.com/wp-content/uploads/2016/01/shot6.png" alt="shot6" width="585" height="226" class="aligncenter size-full wp-image-7355" /></p>
+<p>And then finally &#8211; what to call the relationship:</p>
+<p><img src="http://www.raymondcamden.com/wp-content/uploads/2016/01/shot7.png" alt="shot7" width="603" height="102" class="aligncenter size-full wp-image-7356" /></p>
+<p>I have no idea how it figured out that the plural should be categories. You can define a plural name for your models but I never did for category. If it figured it out automagically &#8211; then cool.</p>
+<p>There&#8217;s a few more prompts you can just accept, and at the end, your modal JSON is modified:</p>
+<pre><code class="language-javascript">
+  "relations": {
+    "categories": {
+      "type": "hasMany",
+      "model": "category",
+      "foreignKey": ""
+    }
+  },
+</code></pre>
+<p>Frankly, looking at that JSON, it is just as easy to type it as it is to use the CLI, so I&#8217;m not too bothered that I can&#8217;t do it in the web app. (Although I still wish it was at least recognized.)</p>
+<p>Once I had that &#8211; I went ahead and opened up the StrongLoop API explorer and made a few blog entries:</p>
+<p><img src="http://www.raymondcamden.com/wp-content/uploads/2016/01/shot8.png" alt="shot8" width="750" height="758" class="aligncenter size-full wp-image-7357" /></p>
+<p>I don&#8217;t have a proper &#8220;admin&#8221; yet, but it takes mere seconds to use the explorer. That&#8217;s damn convenient. </p>
+<p>Ok, so just to recap &#8211; at this point I&#8217;ve used Loopback/StrongLoop to define my content models. I even made a bit of content. I then turned my attention to actually building the application.</p>
+<p>A Loopback application is a Node.js app using Express. That&#8217;s it. However, there&#8217;s a default structure to the app that you should familiarize yourself with. This structure is nicely documented (<a href="https://docs.strongloop.com/display/public/LB/Standard+project+structure">Standard project structure</a>). A particular note is the default routes.js file. You&#8217;ll find this in the <code>boot</code> directory which is automatically loaded by your application on &#8211; you guessed it &#8211; boot. I began by adding a route for my home page:</p>
+<pre><code class="language-javascript">
+app.get('/', function(req, res) {
+	console.log('getting blog entries');
+	app.models.entry.find({where:{released:true},order:'published desc'}).then(function(entries) {
+		res.render('index',{entries:entries});
+	});
+});
+</code></pre>
+<p>For the most part this is boilerplate Express, but note how I can use Loopback&#8217;s APIs via the models object. The find method is a powerful query tool and in this case, we&#8217;re simply asking for items released and doing a sort. The result will be an array of objects that I can use as &#8211; err well &#8211; simple objects. For example, this is my view:</p>
+<pre><code class="language-markup">
+&lt;h2&gt;Entries&lt;/h2&gt;
+
+{{#each entries}}
+	&lt;p&gt;
+	&lt;a href=&quot;{{url}}&quot;&gt;{{title}}&lt;/a&gt;&lt;br/&gt;
+	Published: {{moment published format=&quot;MMMM D, YYYY h:mm A&quot;}}
+	&lt;/p&gt;
+	
+{{/each}}
+</code></pre>
+<p>Nothing special about that, right? Do note though that I&#8217;m using a URL property. That didn&#8217;t exist in the model. How did I do that? I built an observer in my entry.js file to recognize load events:</p>
+<pre><code class="language-javascript">
+module.exports = function(Entry) {
+
+	Entry.observe('loaded', function(ctx, next) {
+		if(ctx && ctx.instance && ctx.instance.released) {
+			var date = ctx.instance.published;
+			ctx.instance.url = "/"+date.getFullYear()+"/"+(date.getMonth()+1)+"/"+date.getDate()+"/"+ctx.instance.slug;
+		}
+		next();
+	});
+	
+};
+</code></pre>
+<p>I&#8217;m a bit unsure about why I need to check for ctx and ctx.instance, but without that check the server crashed when I added new data. And of course, as I see the code above, it makes much more sense to do this when the data is <i>persisted</i>, not loaded. As I said, I&#8217;m learning. I&#8217;ll fix this before the next blog post.</p>
+<p>For blog entries, the code is a bit more complex. My URLs look much like what you see here on this blog: 2015/1/2/Something-Something. The idea being a unique blog entry is the year+month+date+slug. When fetching content, it is easy enough to match on the slug, but the date portion threw me for a loop at first. (See what I did there?)</p>
+<p>In most databases, you can do a where clause against a date part of a time stamp, so for example, where the year of some column that is a date field is equal to something. As far as I know you can&#8217;t do that in Loopback. But you can do a date comparison. This is what I ended up with:</p>
+<pre><code class="language-javascript">
+app.get('/:year/:month/:day/:slug', function(req, res) {
+	console.log('do blog entry');
+	console.dir(req.params);
+	//create an upper and lower date range
+	var lowerDate = new Date(req.params.year, req.params.month-1, req.params.day);
+	var upperDate = new Date(lowerDate);
+	upperDate.setDate(upperDate.getDate()+1);
+	app.models.entry.findOne({where:{
+		released:true,
+		slug:req.params.slug,
+		published:{between:[lowerDate,upperDate]}
+	},limit:1}).then(function(entry) {
+		//first - did we get any?			
+		if(!entry) {
+			res.redirect('/');	
+		}
+		res.render('entry', {entry:entry});
+	});
+});
+</code></pre>
+<p>You can see where I define an upper and lower range for the published property. And that&#8217;s really it. Here are a few additional notes not necessarily related to the core point of this entry.</p>
+<h2>Design</h2>
+<p>For design, I tried <a href="http://www.getmdl.io/">Material Design Lite</a>, which ended up being much more complex than Bootstrap. Maybe it&#8217;s just that I&#8217;m so used to Bootstrap, but I found working with MDL to be a bit overwhelming. Not so much on a component scale (which I didn&#8217;t actually get around to using), but as a layout template it was confusing as heck. I got it working, but honestly, it felt like a lot of work.</p>
+<p><img src="http://www.raymondcamden.com/wp-content/uploads/2016/01/shot9.png" alt="shot9" width="750" height="445" class="aligncenter size-full wp-image-7358 imgborder" /></p>
+<h2>Persistence</h2>
+<p>One of the coolest things about Loopback is that it uses a memory storage system out of the box. That means you don&#8217;t have to set <i>anything</i> up while setting stuff up. Unfortunately, as soon as I got into the server-side code (I mean outside of the Model stuff) and my server was reloading with every edit, that stopped working for me. </p>
+<p>Maybe I&#8217;m crazy, but I wish the memory persistance data store would support persisting to the file system. Yes, I know that&#8217;s a horrible idea in production, but in testing, if I could just have it persist data a bit longer, it would have been really helpful. I have to wonder if maybe there is some way I could use the boot feature to simply add some hard coded data to my system on startup. (Yeah, I like that idea!)</p>
+<h2>Da Code</h2>
+<p>If you want to see, and criticize, the code as it stands now, check it out here: <a href="https://github.com/cfjedimaster/StrongLoopDemos/tree/master/blog1">https://github.com/cfjedimaster/StrongLoopDemos/tree/master/blog1</a>.</p>
+<p>Ok, so what do you think? In the next entry, I&#8217;m going to lock down and secure those remote methods. Then I can start working on an admin. </p>
+]]></content:encoded>
+			<wfw:commentRss>http://www.raymondcamden.com/2016/01/05/playing-with-strongloop-building-a-blog-part-one/feed</wfw:commentRss>
+		<slash:comments>6</slash:comments>
+		</item>
+		<item>
+		<title>Speaking on Ionic in NYC Next Week</title>
+		<link>http://www.raymondcamden.com/2016/01/04/speaking-on-ionic-in-nyc-next-week</link>
+		<comments>http://www.raymondcamden.com/2016/01/04/speaking-on-ionic-in-nyc-next-week#respond</comments>
+		<pubDate>Mon, 04 Jan 2016 14:13:47 +0000</pubDate>
+		<dc:creator><![CDATA[ray]]></dc:creator>
+				<category><![CDATA[Development]]></category>
+		<category><![CDATA[Mobile]]></category>
+		<category><![CDATA[Ionic]]></category>
+
+		<guid isPermaLink="false">http://www.raymondcamden.com/?p=7347</guid>
+		<description><![CDATA[Live in NYC? Want to hear me speak about Ionic services? Want to just heckle me instead? Come check out my presentation to the Ionic NYC meetup group next Wednesday: Ionic Services &#8211; Raymond Camden This is my first time presenting to this group and I plan on bringing some schwag as well as a [&#8230;]]]></description>
+				<content:encoded><![CDATA[<p>Live in NYC? Want to hear me speak about <a href="http:///www.ionicframework.com">Ionic</a> services? Want to just heckle me instead? Come check out my presentation to the Ionic NYC meetup group next Wednesday: </p>
+<p><a href="http://www.meetup.com/Ionic-NYC-Meetup/events/227161281/">Ionic Services &#8211; Raymond Camden</a></p>
+<p>This is my first time presenting to this group and I plan on bringing some schwag as well as a copy of my Apache Cordova book to give away. See you there!</p>
+]]></content:encoded>
+			<wfw:commentRss>http://www.raymondcamden.com/2016/01/04/speaking-on-ionic-in-nyc-next-week/feed</wfw:commentRss>
+		<slash:comments>0</slash:comments>
+		</item>
+		<item>
+		<title>Another year, another WordPress issue</title>
+		<link>http://www.raymondcamden.com/2016/01/02/another-year-another-wordpress-issue</link>
+		<comments>http://www.raymondcamden.com/2016/01/02/another-year-another-wordpress-issue#respond</comments>
+		<pubDate>Sat, 02 Jan 2016 22:28:28 +0000</pubDate>
+		<dc:creator><![CDATA[ray]]></dc:creator>
+				<category><![CDATA[Misc]]></category>
+
+		<guid isPermaLink="false">http://www.raymondcamden.com/?p=7345</guid>
+		<description><![CDATA[Thanks to a reader (thanks Theo!) I&#8217;ve discovered that there is a problem with the latest WordPress install and my blog. If you try to access a URL and get an infinite redirection loop, please let me know. At the end &#8211; this is my fault. When I switched from my custom blog to WordPress, [&#8230;]]]></description>
+				<content:encoded><![CDATA[<p>Thanks to a reader (thanks Theo!) I&#8217;ve discovered that there is a problem with the latest WordPress install and my blog. If you try to access a URL and get an infinite redirection loop, please let me know. At the end &#8211; this is my fault. When I switched from my custom blog to WordPress, the &#8220;pretty urls&#8221; were in a slightly different format than my old site. To fix this, I hacked up WordPress itself, which I <i>know</i> was dumb, but I somehow managed to survive for a year and multiple WP updates without it ever coming to bite me in the ass &#8211; until 4.4 was released a few weeks ago. I didn&#8217;t even know, but some URLs began infinitely redirecting on themselves. As far as I can tell, the issue is related to the hack I did, but oddly I can&#8217;t find a consistent way to recreate it. I can fix it for one URL at a time by editing the post, which makes no sense to me. </p>
+<p>For now &#8211; my plan is to check my access log for URLs returning 301 and then fix them one by one &#8211; while also looking real hard at moving to a completely static solution so I can finally remove PHP/MySQL/NGINX from the equation and go to simple flat files.</p>
+<p>Sigh.</p>
+<p>Programming would be a lot easier without all the darn programs.</p>
+]]></content:encoded>
+			<wfw:commentRss>http://www.raymondcamden.com/2016/01/02/another-year-another-wordpress-issue/feed</wfw:commentRss>
+		<slash:comments>0</slash:comments>
+		</item>
+		<item>
+		<title>Doing some testing…</title>
+		<link>http://www.raymondcamden.com/2016/01/02/doing-some-testing</link>
+		<comments>http://www.raymondcamden.com/2016/01/02/doing-some-testing#respond</comments>
+		<pubDate>Sat, 02 Jan 2016 17:09:14 +0000</pubDate>
+		<dc:creator><![CDATA[ray]]></dc:creator>
+				<category><![CDATA[Uncategorized]]></category>
+
+		<guid isPermaLink="false">http://www.raymondcamden.com/?p=7342</guid>
+		<description><![CDATA[Sorry for the noise folks, but I&#8217;m doing a bit of testing.]]></description>
+				<content:encoded><![CDATA[<p>Sorry for the noise folks, but I&#8217;m doing a bit of testing. </p>
+]]></content:encoded>
+			<wfw:commentRss>http://www.raymondcamden.com/2016/01/02/doing-some-testing/feed</wfw:commentRss>
+		<slash:comments>0</slash:comments>
+		</item>
+		<item>
+		<title>Favorite Media in 2015</title>
+		<link>http://www.raymondcamden.com/2015/12/28/favorite-media-in-2015</link>
+		<comments>http://www.raymondcamden.com/2015/12/28/favorite-media-in-2015#comments</comments>
+		<pubDate>Mon, 28 Dec 2015 16:25:47 +0000</pubDate>
+		<dc:creator><![CDATA[ray]]></dc:creator>
+				<category><![CDATA[Books]]></category>
+		<category><![CDATA[Movies]]></category>
+		<category><![CDATA[Video Games]]></category>
+
+		<guid isPermaLink="false">http://www.raymondcamden.com/?p=7328</guid>
+		<description><![CDATA[Following up on my previous non-tech/just for fun posts (Books I Read in 2015 and My Year), here is my favorite media of 2015. This was originally going to be my favorite music of the year, but I figured I&#8217;d expand it a bit to cover movies and video games too. This is obviously a [&#8230;]]]></description>
+				<content:encoded><![CDATA[<p>Following up on my previous non-tech/just for fun posts (<a href="http://www.raymondcamden.com/2015/12/23/books-i-read-in-2015">Books I Read in 2015</a> and <a href="http://www.raymondcamden.com/2015/12/22/my-year">My Year</a>), here is my favorite media of 2015. This was originally going to be my favorite music of the year, but I figured I&#8217;d expand it a bit to cover movies and video games too. This is obviously a very personal list, but hopefully you&#8217;ll get some ideas about things to watch/play!</p>
+<p><span id="more-7328"></span></p>
+<h2>Favorite Music</h2>
+<p>This is in no particular order, but here are the tracks I listened to a <i>lot</i> this year. The first track, &#8220;Close Your Eyes&#8221;, is incredible. I first heard it on Sirius XMU and was just blown away. It sounds like a pop/rap/NIN mashup and is a great song to turn up real, real loud &#8211; just be sure the kids aren&#8217;t around.</p>
+<p><iframe width="560" height="315" src="https://www.youtube.com/embed/PkGwI7nGehA" frameborder="0" allowfullscreen></iframe></p>
+<p>Speaking of mashups, my favorite this year was a mix of NIN and Taylor Swift. The video is really well done too. Even better, my 5 year old just loves the hell out of it.</p>
+<p><iframe width="560" height="315" src="https://www.youtube.com/embed/DhvXST1Rc3g" frameborder="0" allowfullscreen></iframe></p>
+<p>Another surprise was the new Prodigy album &#8211; the first single was freaking awesome.</p>
+<p><iframe width="560" height="315" src="https://www.youtube.com/embed/h1AaKBbNGkk" frameborder="0" allowfullscreen></iframe></p>
+<p>More recently, this Grimes track has been on repeat for me as well:</p>
+<p><iframe width="560" height="315" src="https://www.youtube.com/embed/Tv9YoYCKNoE" frameborder="0" allowfullscreen></iframe></p>
+<p>And while not new, my favorite song from the past few years has been pretty consistent &#8211; &#8220;Wings&#8221; by HAERTS.</p>
+<p><iframe width="560" height="315" src="https://www.youtube.com/embed/yk52XHSpmF4" frameborder="0" allowfullscreen></iframe></p>
+<h2>Movies</h2>
+<p>So yeah, the <i>big</i> movie for me was &#8211; obviously &#8211; the Force Awakens. I <a href="http://www.raymondcamden.com/2015/12/18/review-star-wars-the-force-awakens">reviewed</a> it already. But what else impressed me this year? I thought both &#8220;Avengers 2&#8221; and &#8220;Ant-Man&#8221; were great Marvel films. I liked how different they were. One was a huge scale/popcorn chomping film while the other was much smaller, personable, still with great action. And while I&#8217;m not specifically writing up a TV section, &#8220;Jessica Jones&#8221; was <i>damn</i> good too. As an aside, Netflix is the best thing to happen to TV in a long time. From their own content to their documentary selection to even some of their &#8220;B&#8221; flicks, I feel like I could easily pay more for the service. Speaking of Marvel &#8211; don&#8217;t bother seeing the Fantastic Four film. It isn&#8217;t watchable even if you can see it for free.</p>
+<p>&#8220;Inside Out&#8221; was easily one of the best children&#8217;s movies I&#8217;ve seen since &#8220;Up&#8221;. I loved &#8220;The Martian&#8221; and will be reading the book next year. &#8220;The Visit&#8221; proved to me that M.Night <i>may</i> have a tiny bit of talent left (stress &#8211; &#8220;may&#8221;). </p>
+<p>I was initially a bit disappointed by &#8220;Mad Max&#8221;, but after watching it a second time I appreciate it a bit more. I still feel like it was more a &#8220;Film set in the Mad Max universe&#8221; then a proper &#8220;Mad Max&#8221; film, but maybe I&#8217;m just being too picky.</p>
+<p>If there is one film I&#8217;d like folks to consider, it is &#8220;Maggie&#8221;. This flew <i>way</i> under the radar &#8211; I don&#8217;t think I saw it advertised once &#8211; but it is an incredibly well done zombie film. Outside of &#8220;The Walking Dead&#8221;, I&#8217;m really tired of zombies, but this is the best zombie film I&#8217;ve seen since &#8220;28 Days Later.&#8221; I highly recommend seeing &#8220;Maggie&#8221; as soon as you can. I never thought I&#8217;d see a zombie film that was slow and thoughtful &#8211; but this movie really pulls if off.</p>
+<p><iframe width="560" height="315" src="https://www.youtube.com/embed/2xSzwS_wK-0" frameborder="0" allowfullscreen></iframe></p>
+<p>Oh, and as for stuff I&#8217;m embarrassed to admit &#8211; my guilty pleasure recently is &#8220;The Royals.&#8221; It is pure and utter trash, but fun to watch.</p>
+<p><iframe width="560" height="315" src="https://www.youtube.com/embed/t1XvUYvdr3s" frameborder="0" allowfullscreen></iframe></p>
+<p>For next year, keep an eye out for &#8220;Colony&#8221;. I&#8217;m a fan of alien invasion stories, especially ones that are far removed from &#8220;Independence Day&#8221;, and this one looks fascinating so far. You can watch the first episode online now if you don&#8217;t want to wait. Of course, like most sci-fi shows with a &#8220;mystery&#8221;, you have to assume it will probably get cancelled before they resolve anything. </p>
+<p><iframe width="560" height="315" src="https://www.youtube.com/embed/oRLW-qQLMQs" frameborder="0" allowfullscreen></iframe></p>
+<h2>Video Games</h2>
+<p>So I just checked, and apparently, I only reviewed 2 video games this year &#8211; Battlefront and Destiny. I liked them both, but I&#8217;m not sure I&#8217;d consider them great. I&#8217;m spending a <i>lot</i> of time during this Christmas break playing Fallout 4, and I like it a lot too, but again, I&#8217;m not sure I&#8217;ll be thinking about it in a year&#8217;s time. As an example of what I mean &#8211; my eldest son recently borrowed my PS3 (the PS4 now rules my TV) so he could play &#8220;The Last of Us&#8221;, and I still tend to think of that game when I think about what makes a truly &#8220;great&#8221; video game. (And if folks are curious, my all time favorite game was &#8220;A Mind Forever Voyaging&#8221;.) I guess the best I can say is that I&#8217;m enjoying the three games I mentioned and I recommend them, but nothing has blown me away this year. </p>
+<p>I will add that both Sony and Microsoft have deals where if you pay for a yearly multiplayer subscription, you get free games every month. While the quality goes up and down, there have been some really great freebies. So even if you don&#8217;t play online a lot, you should definitely consider subscribing. </p>
+]]></content:encoded>
+			<wfw:commentRss>http://www.raymondcamden.com/2015/12/28/favorite-media-in-2015/feed</wfw:commentRss>
+		<slash:comments>1</slash:comments>
+		</item>
+		<item>
+		<title>Books I Read in 2015</title>
+		<link>http://www.raymondcamden.com/2015/12/23/books-i-read-in-2015</link>
+		<comments>http://www.raymondcamden.com/2015/12/23/books-i-read-in-2015#comments</comments>
+		<pubDate>Wed, 23 Dec 2015 21:16:33 +0000</pubDate>
+		<dc:creator><![CDATA[ray]]></dc:creator>
+				<category><![CDATA[Books]]></category>
+
+		<guid isPermaLink="false">http://www.raymondcamden.com/?p=7319</guid>
+		<description><![CDATA[Yep, another lame, non-tech post. Sorry (not sorry). Today&#8217;s post is my list of books read in 2015. I record my books via Goodreads which has a set of widgets that &#8211; in theory &#8211; I could use &#8211; but every single one of them is broken. Oddly &#8211; dev tools didn&#8217;t reveal why they [&#8230;]]]></description>
+				<content:encoded><![CDATA[<p>Yep, another lame, non-tech post. Sorry (not sorry). Today&#8217;s post is my list of books read in 2015. I record my books via <a href="http://www.goodreads.com">Goodreads</a> which has a set of widgets that &#8211; in theory &#8211; I could use &#8211; but every single one of them is broken. Oddly &#8211; dev tools didn&#8217;t reveal why they were so broken. So I decided to do something lame. I took their cool &#8220;year in review&#8221; blog post, snapped a picture of it with Firefox&#8217;s <code>screenshot</code> command, and pasted it here. You won&#8217;t be able to click on any book and order them via Amazon, but I figure we&#8217;re all capable of searching, right?</p>
+<p><span id="more-7319"></span></p>
+<p>I&#8217;m rather proud of the number of books I read &#8211; and even happier that there were so few stinkers. </p>
+<p><img src="http://www.raymondcamden.com/wp-content/uploads/2015/12/books.jpg" alt="books" width="654" height="3638" class="aligncenter size-full wp-image-7320" /></p>
+]]></content:encoded>
+			<wfw:commentRss>http://www.raymondcamden.com/2015/12/23/books-i-read-in-2015/feed</wfw:commentRss>
+		<slash:comments>2</slash:comments>
+		</item>
+		<item>
+		<title>My Year</title>
+		<link>http://www.raymondcamden.com/2015/12/22/my-year</link>
+		<comments>http://www.raymondcamden.com/2015/12/22/my-year#comments</comments>
+		<pubDate>Tue, 22 Dec 2015 17:51:01 +0000</pubDate>
+		<dc:creator><![CDATA[ray]]></dc:creator>
+				<category><![CDATA[Misc]]></category>
+
+		<guid isPermaLink="false">http://www.raymondcamden.com/?p=7308</guid>
+		<description><![CDATA[Ok, so technically the year isn&#8217;t done yet, but I was inspired by Nic Raboy&#8217;s post (My Activity Report for 2015) to go ahead and post a summary. I figure posts like these really aren&#8217;t that popular, but it gives me a chance to look at and think about what I did and try to [&#8230;]]]></description>
+				<content:encoded><![CDATA[<p>Ok, so technically the year isn&#8217;t done yet, but I was inspired by Nic Raboy&#8217;s post (<a href="https://blog.nraboy.com/2015/12/activity-report-2015/">My Activity Report for 2015</a>) to go ahead and post a summary. I figure posts like these really aren&#8217;t that popular, but it gives me a chance to look at and think about what I did and try to benchmark where I want to be next year. I&#8217;m also planning a &#8216;favorite music of 2015&#8217; and &#8216;books read in 2015&#8217; post as well, so if it isn&#8217;t terribly obvious, I&#8217;m enjoying the end of the year by slowing down quite a bit. I actually did write a good 2000 words yesterday on a technical topic, but that post is going to be delayed till next year (which is like 2 weeks away). Ok, so with all of that out of the way, here&#8217;s a rough summary of what I got this past year and what I hope to improve on. As always, I appreciate comments (both positive and critical). My goal is to make raymondcamden.com useful to my readers while still maintaining my own personal brand. I assume people come here not just to learn X but also to hear how I specifically would teach something. I&#8217;m not the smartest tool in the shed, but I think I&#8217;ve got a knack for figuring stuff out and breaking down complex processes into something even an idiot (specifically me) can handle. </p>
+<p><span id="more-7308"></span></p>
+<h2>The Blog</h2>
+<p>The year started off a bit rough. Late last year I made the crazy decision to completely move away from ColdFusion for my blog and switch to WordPress. I wanted to focus on blogging and not maintaining the code base for my blog. I was incredibly impressed by WordPress and was happy to change, however the server itself suffered quite a few issues. In the end, I migrated from Apache to NGINX and that seemed to help. I also had to cache quite a bit. Frankly, that was a bit disappointing. My blog gets &#8220;ok&#8221; traffic, but not anything that I think would require a lot of horsepower. I truly expected WordPress to work fine &#8220;out of the box&#8221; for a site of my nature, but I guess that&#8217;s just not the case. Once I got caching setup right things seemed ok for the most part. Most recently I got hit by a xmlrpc DOS style attack and it took me a while to figure out how to correctly block it with NGINX. As soon as I did I had smooth sailing. I&#8217;m still not convinced things are perfect and I&#8217;m still considering a completely static solution, but the <i>process</i> of writing in WordPress is so darn nice. I don&#8217;t want to lose that. I&#8217;m toying with the idea of a desktop based app built in Electron that would give me a nice editing experience while supporting a static solution. We&#8217;ll see.</p>
+<p>Let&#8217;s talk stats.</p>
+<p>This year I wrote 252 entries which is a pretty good pace I think. Obviously quality trumps quantity but I want the blog to be active. My best month was March with 30 entries (how in the hell&#8230;) and my worst was June with 13. (I think that&#8217;s when I took a 10 day vacation.)</p>
+<p>I&#8217;m currently sitting at 5,619 blog entries total of which probably 50% have silly cat pictures of Star Wars references. Let&#8217;s be honest &#8211; that&#8217;s why you come, right?</p>
+<p>My page views for the year are 1,523,380. For the same time period last year the count was 1,682,475. That&#8217;s a drop, but it seems pretty small and hopefully not a trend. Ok, so I was curious &#8211; in 2013 it was 1,713,716 but in 2012 it was 1,116,842. So I probably need to just not worry about it.</p>
+<p>In terms of engagement, I&#8217;m right over 2000 comments for the year. I&#8217;d like that number to be a lot higher, but frankly I&#8217;ve yet to find the &#8220;magical formula&#8221; for getting people to comment. Typically a post I think is important will get fewer comments than a post I think is frivolous, so, yeah, I&#8217;ll just keep going. (I do try to specifically call out people to comment to help encourage them. Not sure if that helps though.)</p>
+<p>My most popular posts <i>written</i> this year were:</p>
+<ul>
+<li><a href="/2015/04/03/strategies-for-dealing-with-multiple-ajax-calls">Strategies for dealing with multiple Ajax calls</a></li>
+<li><a href="/2015/03/12/selecting-multiple-images-in-a-phonegapcordova-app">Selecting multiple images in a PhoneGap/Cordova app</a></li>
+<li><a href="/2015/04/14/blowing-up-localstorage-or-what-happens-when-you-exceed-quota">Blowing up LocalStorage (or what happens when you exceed quota)</a></li>
+<li><a href="/2015/03/24/having-trouble-with-splash-screens-cordova-and-android">Having trouble with splash screens, Cordova, and Android?</a></li>
+<li><a href="/2015/07/23/some-initial-thoughts-on-building-desktop-apps-with-ionic-and-electron">Some initial thoughts on building desktop apps with Ionic and Electron</a></li>
+<li><a href="/2015/03/31/an-early-look-at-ionic-push">An early look at Ionic Push</a></li>
+<li><a href="/2015/05/18/tracking-and-notifying-geolocation-status-with-ionic">Tracking and notifying geolocation status with Ionic</a></li>
+<li><a href="/2015/05/25/important-information-about-cordova-5">Important information about Cordova 5</a></li>
+<li><a href="/2015/05/19/working-with-the-new-phonegapcordova-contentsync-plugin">Working with the new PhoneGap/Cordova ContentSync Plugin</a></li>
+<li><a href="/2015/09/16/ionic-example-ion-slide-box">Ionic Example: ion-slide-box</a></li>
+</ul>
+<p>Every single article here is web related, with 70% being mobile specific. Four of the top ten are <a href="http://www.ionicframework.com">Ionic related</a> which should come as a surprise to absolutely no one.</p>
+<p>Unfortunately, not one of the &#8216;real&#8217; top viewed posts for 2015 were actually written in 2015. My number one post for the year<br />
+was my 2011 post on <a href="http://www.raymondcamden.com/2011/11/10/Example-of-serverbased-login-with-PhoneGap">logging into a server with PhoneGap</a>. I may need to write an updated version of that uses Ionic instead of jQuery Mobile.</p>
+<h2>Writing</h2>
+<p>This was a really good year for my writing. I published 6 articles for the <a href="http://developer.telerik.com">Telerik Developer Network</a>. They have been a great outlet for me to reach other developers and I want to give them a big thank you.  I keep a list of all my articles on my <a href="http://www.raymondcamden.com/about-me">About Me</a> page if you want to peruse that list.</p>
+<p>Speaking of &#8220;other audiences&#8221; &#8211; DZone reprints some of my articles as well and the traffic there is pretty good. You can see a <a href="https://dzone.com/users/201258/cfjedimaster.html?sort=articles">list</a> of them and the view count is pretty impressive, especially when I compare it to my own stats. </p>
+<p>I published one book (<a href="http://www.amazon.com/Apache-Cordova-Action-Raymond-Camden/dp/1633430065/ref=as_sl_pc_qf_sp_asin_til?tag=raymondcamden-20&#038;linkCode=w00&#038;linkId=FOJFKR7OPMALMZUB&#038;creativeASIN=1633430065">Apache Cordova in Action</a>) and I have a second one (<a href="http://shop.oreilly.com/product/0636920043676.do">Client-Side Data Storage</a>) that is a few days away from publication. I&#8217;m also working on a third update to my <a href="http://www.amazon.com/dp/1782167897/ref=as_sl_pc_tf_lc?tag=raymondcamden-20&#038;camp=14573&#038;creative=327641&#038;linkCode=as1&#038;creativeASIN=1782167897&#038;adid=1SPN78Z1P5CXJM72EZ70&#038;&#038;ref-refURL=http%3A%2F%2Fwww.raymondcamden.com%2Fabout-me">jQuery Mobile book</a> that should be out early next year. </p>
+<p>I completely failed at my attempt to do creative writing. I wrote one page of a story and did research into the basic idea, but, yeah, I failed at that. Maybe next year?</p>
+<h2>Videos</h2>
+<p>My video work was in two areas &#8211; Youtube and OReilly. At the beginning of the year I had wanted to do a <i>lot</i> of Youtubing. (That really can&#8217;t be a word. I hope not.) I worked on my <a href="http://www.youtube.com/theraymondcamden">channel</a> a bit and tried to record as much as possible. I recorded 19 videos which isn&#8217;t too bad, but I would have liked to have done more. Views were a bit over 53 thousand and minutes watched just over 100 thousand. I think I could do a lot better there. However &#8211; part of the reason I wanted to push Youtube so hard this year was because I assumed I would not be traveling. I began the year as a glorified technical writer for Adobe with little to no chance of being able to attend any conferences. Luckily that situation changed when I joined IBM as a developer advocate in February. How much did I travel?</p>
+<p>I flew 65,083 miles to 26 cities and 7 different countries. That&#8217;s one way to get status on an airline. </p>
+<p>Outside of YouTube, I also began recording courses for OReilly. Most recently a course on <a href="http://shop.oreilly.com/product/0636920043638.do">client-side storage</a> and before that, one on <a href="http://shop.oreilly.com/product/0636920034971.do">JavaScript templating</a>. I&#8217;m working on one now for dev tools. I&#8217;ve really enjoyed working for OReilly. They are a great publisher to do business with and I feel like I&#8217;m treated like a rock star. </p>
+<h2>Conferences/Presentations</h2>
+<p>I started tracking my <a href="http://www.raymondcamden.com/upcoming-speaking-engagements">speaking engagements</a> a bit earlier this year. This year I did:</p>
+<p>NCDevCon<br />
+Ionic SF<br />
+Ionic Dallas<br />
+Mountains of Code<br />
+Meetup in Melbourne<br />
+Meetup in Sydney<br />
+Meetup in Kuala Lumpur<br />
+Another meetup in Kuala Lumpur<br />
+Meetup in Singapore<br />
+Another meetup Singapore<br />
+Meetup in Manila</p>
+<p>My hope for next year is that I can finally speak at one of the top JavaScript-only conferences. The web dev community still feels like a bit of an insider&#8217;s club sometimes in terms of &#8220;breaking in&#8221; to get a speaking slot. Anyone else feel that way?</p>
+<h2>Onward to 2016</h2>
+<p>I think I say this every year, but I truly hope next year I can continue to provide value to my readers. I love sharing my pain (I mean joy) of development and I hope my time spent struggling to get stuff working helps you get things done quicker. If you&#8217;ve gotten something from this site and can bill a boss-type person, please consider visiting my <a href="http://www.amazon.com/wishlist/2TCL1D08EZEYE">Amazon wishlist</a> and drop me a line when you do. (Amazon does a bad job of letting me know who got me a gift.) That Special Forces TIE fighter would look great in my office! <img src="http://s.w.org/images/core/emoji/72x72/1f609.png" alt="😉" class="wp-smiley" style="height: 1em; max-height: 1em;" /></p>
+]]></content:encoded>
+			<wfw:commentRss>http://www.raymondcamden.com/2015/12/22/my-year/feed</wfw:commentRss>
+		<slash:comments>15</slash:comments>
+		</item>
+	</channel>
+</rss>
